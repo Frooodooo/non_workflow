@@ -1,0 +1,333 @@
+{
+  "name": "Vectordatabase",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// Get input parameters from previous node\nconst query = $input.first().json.query;\nconst searchType = $input.first().json.searchType;\nconst needsContent = $input.first().json.needsContent;\nconst collection = $input.first().json.collection;\nconst limit = $input.first().json.limit;\nconst filter = $input.first().json.filter || null;\n\n// Return formatted output with all attributes\nreturn [\n  {\n    json: {\n      query,\n      searchType,\n      needsContent,\n      collection,\n      limit,\n      filter\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        496,
+        48
+      ],
+      "id": "1567e820-c195-4d18-8ebb-cf43c0301e68",
+      "name": "PageContent Decision"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Smart parameter processing with proper PageContent exclusion - FIXED\nconst query = $json.query\nconst explicitSearchType = $json.searchType\nconst needsPageContent = $json.needsContent\nconst limit = $json.limit\nconst collection = $json.collection\n// Determine search type\nlet searchType;\nif (explicitSearchType) {\n  searchType = explicitSearchType;\n} else {\n  searchType = needsPageContent ? 'detailed' : 'fast';\n}\n\n// Configure payload based on PageContent decision - CORRECTED SYNTAX\nlet withPayload;\nif (needsPageContent) {\n  // Include everything including PageContent\n  withPayload = true;\n} else {\n  // Exclude PageContent for performance - CORRECT QDRANT SYNTAX\n  withPayload = {\n    \"exclude\": [\"metadata.metadata.PageContent\"]\n  };\n}\n\n// Optimize settings based on content inclusion\nconst optimizedLimit = needsPageContent ? Math.min(limit, 15) : Math.min(limit, 50);\nconst scoreThreshold = needsPageContent ? 0.25 : 0.3;\nconst hnswEf = needsPageContent ? 128 : 64;\n\nreturn {\n  query: query,\n  collection: collection,\n  with_payload: withPayload,\n  limit: optimizedLimit,\n  search_type: searchType,\n  needs_page_content: needsPageContent,\n  score_threshold: scoreThreshold,\n  params: {\n    \"hnsw_ef\": hnswEf,\n    \"exact\": false\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        160
+      ],
+      "id": "017238c3-b032-4ada-8a6e-897b74b91a56",
+      "name": "Smart Search Parameters"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "text-embedding-3-small"
+            },
+            {
+              "name": "input",
+              "value": "={{ $('Smart Search Parameters').item.json.query }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        160
+      ],
+      "id": "e545a21d-b20a-47d4-af73-6e1114a7cecb",
+      "name": "Generate Query Embedding"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Build Qdrant query payload - ENSURE with_payload is correctly handled\nconst embedding = $('Generate Query Embedding').item.json.data[0].embedding;\nconst searchParams = $('Smart Search Parameters').item.json;\n\nconst queryPayload = {\n  query: embedding,\n  limit: searchParams.limit,\n  offset: searchParams.offset,\n  score_threshold: searchParams.score_threshold,\n  with_payload: searchParams.with_payload, // This must be passed exactly as configured\n  with_vector: false\n};\n\nif (searchParams.filter && Object.keys(searchParams.filter).length > 0) {\n  queryPayload.filter = searchParams.filter;\n}\n\nif (searchParams.params && Object.keys(searchParams.params).length > 0) {\n  queryPayload.params = searchParams.params;\n}\n\n// Debug logging\nconsole.log('with_payload config:', searchParams.with_payload);\nconsole.log('Query payload:', JSON.stringify(queryPayload, null, 2));\n\nreturn {\n  queryPayload: queryPayload,\n  collection: searchParams.collection\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1088,
+        160
+      ],
+      "id": "281d879c-00c6-4929-ac7c-bb6b83c6c325",
+      "name": "Build Query Payload"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://qdrant:6333/collections/{{ $('Build Query Payload').item.json.collection }}/points/query",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "qdrantApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Build Query Payload').item.json.queryPayload) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1248,
+        160
+      ],
+      "id": "1af19942-5c3d-4bfa-b781-5aa4047a688f",
+      "name": "Qdrant Query",
+      "credentials": {
+        "qdrantApi": {
+          "id": "sFfERYppMeBnFNeA",
+          "name": "Local QdrantApi database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Process results and format output\nconst searchResults = $('Qdrant Query').item.json;\nconst searchParams = $('Smart Search Parameters').item.json;\nconst contentDecision = $('PageContent Decision').item.json;\nconst processedResults = JSON.parse(JSON.stringify(searchResults));\n\nif (processedResults.result && processedResults.result.points) {\n  processedResults.result.points.forEach((point, index) => {\n    if (point.payload && point.payload.metadata && point.payload.metadata.metadata) {\n      const metadata = point.payload.metadata.metadata;\n      \n      // Add document enhancements\n      const docId = Math.floor(Math.random() * (999999 - 100000) + 100000);\n      point.document_link = `http://voras/DlxTeam/Common/Page.aspx?ID=${docId}`;\n      point.rank = index + 1;\n      point.relevance = point.score > 0.8 ? 'high' : point.score > 0.5 ? 'medium' : 'low';\n      point.score_percentage = `${(point.score * 100).toFixed(1)}%`;\n      \n      // Document summary\n      point.document_summary = {\n        filename: metadata.filename || 'Unknown Document',\n        document_type: (metadata.documentType || 'unknown').toUpperCase(),\n        created_at: metadata.created_at || 'Unknown date',\n        file_size_mb: metadata.file_size ? (metadata.file_size / (1024 * 1024)).toFixed(2) + ' MB' : 'Unknown size',\n        summary: metadata.summary || 'No summary available',\n        topics: metadata.topics || [],\n        has_content: !!metadata.PageContent\n      };\n\n      // CONTENT DECISION FILTERING\n      // If contentDecision is false, remove PageContent from the payload\n      if (contentDecision === false || contentDecision.decision === false) {\n        // Remove PageContent from metadata\n        if (point.payload.metadata.metadata.PageContent) {\n          delete point.payload.metadata.metadata.PageContent;\n        }\n        \n        // Also remove from any other nested locations where PageContent might exist\n        if (point.payload.metadata.PageContent) {\n          delete point.payload.metadata.PageContent;\n        }\n        \n        // Update document summary to reflect content removal\n        point.document_summary.has_content = false;\n        point.document_summary.content_filtered = true;\n        point.document_summary.filter_reason = contentDecision.reason || 'Content decision was false';\n      } else {\n        // If contentDecision is true, keep PageContent as is\n        point.document_summary.content_filtered = false;\n      }\n    }\n  });\n}\n\n// Add comprehensive metadata\nprocessedResults.search_metadata = {\n  query: searchParams.query,\n  search_type: searchParams.search_type,\n  page_content_included: searchParams.needs_page_content,\n  page_content_decision: contentDecision.reason || contentDecision,\n  content_filtering_applied: contentDecision === false || contentDecision.decision === false,\n  total_results: processedResults.result?.points?.length || 0,\n  timestamp: new Date().toISOString(),\n  performance: {\n    search_time_seconds: (processedResults.time || 0).toFixed(3),\n    configuration: searchParams.needs_page_content ? \n      'Full payload with PageContent' : \n      'Optimized (PageContent excluded)',\n    hnsw_ef: searchParams.params?.hnsw_ef || 64\n  }\n};\n\nreturn processedResults;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1424,
+        160
+      ],
+      "id": "9933cb03-941a-48ca-b701-1309d8d16dce",
+      "name": "Process Results"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fixed PageContent Filtering - Handle string/boolean values correctly\nconst data = $input.first().json;\nconst results = data.result?.points || [];\n\n// Convert string \"false\"/\"true\" to actual boolean\nconst needsContentRaw = data.needsContent;\nconst needsContent = needsContentRaw === true || needsContentRaw === \"true\";\n\nconsole.log('=== PAGECONTENT FILTERING ===');\nconsole.log('Raw needsContent value:', needsContentRaw, '(type:', typeof needsContentRaw, ')');\nconsole.log('Converted to boolean:', needsContent);\nconsole.log('Total points to process:', results.length);\n\n// Process all points and filter PageContent\nconst filteredPoints = results.map((point, index) => {\n  // Create a deep copy to avoid modifying original\n  const processedPoint = JSON.parse(JSON.stringify(point));\n  \n  // Check if PageContent exists at the correct location\n  const hasPageContent = !!(point.payload?.metadata?.PageContent);\n  \n  if (needsContent === false && hasPageContent) {\n    // Remove PageContent when needsContent is false\n    delete processedPoint.payload.metadata.PageContent;\n    console.log(`Point ${index}: Removed PageContent (${point.payload.metadata.PageContent.length} chars)`);\n  } else if (needsContent === true && hasPageContent) {\n    // Keep PageContent when needsContent is true  \n    console.log(`Point ${index}: Preserved PageContent (${point.payload.metadata.PageContent.length} chars)`);\n  } else {\n    console.log(`Point ${index}: No PageContent found`);\n  }\n  \n  return processedPoint;\n});\n\n// Create the filtered result structure\nconst filteredResult = {\n  ...data,\n  result: {\n    ...data.result,\n    points: filteredPoints\n  }\n};\n\nconsole.log('=== FILTERING COMPLETE ===');\nconsole.log('Action taken:', needsContent ? 'PageContent preserved' : 'PageContent removed');\nconsole.log('Filtered points count:', filteredPoints.length);\n\n// Verify filtering worked\nif (needsContent === false) {\n  const stillHasContent = filteredPoints.some(point => \n    point.payload?.metadata?.PageContent\n  );\n  console.log('Any PageContent remaining?', stillHasContent ? 'YES (ERROR!)' : 'NO (SUCCESS)');\n}\n\n// Return the filtered data structure directly\nreturn filteredResult;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1776,
+        64
+      ],
+      "id": "6e55d7e9-3763-4ce5-9b9a-c2bf18775f1e",
+      "name": "Validate PageContent"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        1600,
+        64
+      ],
+      "id": "1aff188b-682d-49f6-9b67-d05e87e35bea",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "query"
+            },
+            {
+              "name": "searchType"
+            },
+            {
+              "name": "needsContent"
+            },
+            {
+              "name": "collection"
+            },
+            {
+              "name": "limit",
+              "type": "number"
+            },
+            {
+              "name": "filter",
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        256,
+        48
+      ],
+      "id": "747d810c-ec95-4652-a27b-a17d5dd80ce9",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "content": "Workflow that fetches information from vector database",
+        "width": 304
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        240,
+        -144
+      ],
+      "id": "bfd38453-ab05-448b-9a8c-1007e5db35b7",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "Update credentials that would be used for query generation",
+        "height": 80,
+        "width": 224
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        816,
+        336
+      ],
+      "id": "4f11107e-9ddb-4047-8c41-0d1a94a2a3c5",
+      "name": "Sticky Note1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "PageContent Decision": {
+      "main": [
+        [
+          {
+            "node": "Smart Search Parameters",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Smart Search Parameters": {
+      "main": [
+        [
+          {
+            "node": "Generate Query Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Query Embedding": {
+      "main": [
+        [
+          {
+            "node": "Build Query Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Query Payload": {
+      "main": [
+        [
+          {
+            "node": "Qdrant Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant Query": {
+      "main": [
+        [
+          {
+            "node": "Process Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Results": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Validate PageContent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "PageContent Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "42ff72bb-cbe9-4925-9c6c-b34ce9a61735",
+  "meta": {
+    "instanceId": "558d88703fb65b2d0e44613bc35916258b0f0bf983c5d4730c00c424b77ca36a"
+  },
+  "id": "YWZzboOFRl0WhDcu",
+  "tags": []
+}

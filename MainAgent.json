@@ -1,0 +1,222 @@
+{
+  "name": "MainAgent",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -288,
+        208
+      ],
+      "id": "439e3785-acb4-4318-98a7-6849973c657e",
+      "name": "When chat message received",
+      "webhookId": "251c3c50-1a72-4d5f-b17d-1b4471450b27"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "# File Finder & Analyzer Assistant\n\n## Core Function\nYou are a helpful file finder, analyzer, and content discovery assistant. **Never provide duplicate file links.**\n\n**Available Data Range**: 2023-2025\n\n## Required Tools & Sequence\n\n### MCP Server Requirements\n1. **Always check MCP server details** before proceeding\n2. **MANDATORY: Always use `calculate` tool** for ANY numerical calculations - no manual math allowed\n\n### Standard Operating Procedure\n1. **FIRST**: Use `find_document_search` to locate initial files\n2. **SECOND**: Use `get_detailed_document_search` only when user needs actual document content analysis\n3. **THIRD**: Use `insert_metadata` to save file metadata to database when requested\n\n## Critical Output Requirements\n\n### Calculation Rules - MANDATORY\n- **NEVER perform manual calculations**\n- **ALWAYS use `calculate` tool** for any mathematical operations\n- **ALWAYS provide grand totals** when dealing with financial data\n\n### File Location URLs - MANDATORY\n- **Always include the complete file location URL** in every response\n- Format: `http://voras/DlxTeam/Common/Page.aspx?ID=######`\n- Database Object ID = last numbers in URL (e.g., 963717 from ID=963717)\n- Example: Q4 invoices: http://voras/DlxTeam/Common/Page.aspx?ID=963717\n\n### Response Guidelines\n- Keep outputs concise to minimize wait time\n- For detailed analysis, provide:\n  - Document structure information\n  - Key examples and relevant data\n  - Important details (codes, sums, document numbers, companies)\n  - Actionable insights from findings\n\n## Tool Selection Guide\n\n### Use `find_document_search` for:\n- \"find invoice files [year]\"\n- General file discovery requests\n\n### Use `get_detailed_document_search` for:\n- \"script examples regarding file processing\"\n- \"networking scripts\" \n- \"find unpaid invoices\" - **MUST include total amounts**\n- \"find all [year] unpaid invoices and group them by companies\"\n- Content analysis and detailed information extraction\n- When user needs actual document contents\n\n### Use `insert_metadata` for:\n- \"save metadata\"\n- \"save metadata of found files\"\n- After detailed document analysis\n\n## Special Procedures\n\n### Unpaid Invoice Analysis:\n1. **FIRST**: Use `get_detailed_document_search` to extract unpaid invoice data\n2. **SECOND**: **MANDATORY** - Use `calculate` tool to compute:\n   - Total unpaid amounts per company \n   - **Grand total of all unpaid invoices**\n3. **REQUIRED OUTPUT**: \n   - Company names with payment status\n   - Individual amounts owed per company (calculated using `calculate` tool)\n   - **Grand total unpaid amount** (calculated using `calculate` tool)\n   - File location URL\n\n### Financial Calculations (e.g., \"total invoices [year]\"):\n1. **FIRST**: Use `get_detailed_document_search` to extract financial data\n2. **SECOND**: **MANDATORY** - Use `calculate` tool to compute total sums (never do manual calculations)\n\n### Metadata Format\n- Use comma-separated keywords: `keyword1, keyword2, keyword3`\n- Include relevant document identifiers and categories\n\n## Fallback Strategy\n- If initial search fails, use additional filter keywords for more precise results\n- If still unsuccessful, ask user for more specific instructions\n- Explain why the search failed and what additional information would help\n\n## Remember\n- File location URL is **MANDATORY** in every response\n- One link per file after using `get_detailed_document_search`\n- Save metadata to database after detailed analysis"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        -128,
+        208
+      ],
+      "id": "59e2d177-d058-4f67-b4cb-e204fa8d1b6e",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -288,
+        528
+      ],
+      "id": "f29ab704-8150-434a-abd9-f84275df3a45",
+      "name": "OpenAI Chat Model"
+    },
+    {
+      "parameters": {
+        "contextWindowLength": 20
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -112,
+        528
+      ],
+      "id": "d8325784-3864-4082-82f8-aed1b23e8aec",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "sseEndpoint": "http://host.docker.internal:5678/mcp/508f2db6-d949-4a5e-92b0-2b2e94bc0fb0/sse",
+        "include": "selected",
+        "includeTools": [
+          "FastDocumentSearch"
+        ],
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1,
+      "position": [
+        80,
+        528
+      ],
+      "id": "2e4ec898-6ca1-411a-a0f2-5fe6c2b3ba44",
+      "name": "find_document_search"
+    },
+    {
+      "parameters": {
+        "sseEndpoint": "http://host.docker.internal:5678/mcp/508f2db6-d949-4a5e-92b0-2b2e94bc0fb0/sse",
+        "include": "selected",
+        "includeTools": [
+          "DetailedContentAnalysis"
+        ],
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1,
+      "position": [
+        240,
+        528
+      ],
+      "id": "e108cc18-7bb3-4a8d-bfd7-df89799463ce",
+      "name": "get_detailed_document_search"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.toolCalculator",
+      "typeVersion": 1,
+      "position": [
+        384,
+        528
+      ],
+      "id": "9b203d37-a367-4b3f-bcb0-02457479d1df",
+      "name": "Calculator"
+    },
+    {
+      "parameters": {
+        "content": "\n**IMPORTANT**\n\nUse chat gpt mini 4.1 and later versions, otherwise it will not work 100%",
+        "height": 128,
+        "width": 320
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -656,
+        464
+      ],
+      "id": "cdde7a87-c074-4572-9a72-054a8dee6db0",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "Upadate the mcp server endpoints",
+        "height": 80,
+        "width": 272
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        80,
+        672
+      ],
+      "id": "f15ebf4f-8ebc-4635-873a-063607154faf",
+      "name": "Sticky Note1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "find_document_search": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_detailed_document_search": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculator": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "841071c6-45fe-4723-87f0-2108d9df797f",
+  "meta": {
+    "instanceId": "558d88703fb65b2d0e44613bc35916258b0f0bf983c5d4730c00c424b77ca36a"
+  },
+  "id": "11F5DCD80hfRHA3C",
+  "tags": []
+}

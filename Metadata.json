@@ -1,0 +1,2192 @@
+{
+  "name": "Metadata",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -4160,
+        816
+      ],
+      "id": "1874f092-5c80-4d44-a704-893e63d18bd3",
+      "name": "When clicking ‘Test workflow’"
+    },
+    {
+      "parameters": {
+        "fileSelector": "=/data/downloads/invoice_data_2024/**/*.{pdf,docx,xlsx,txt,doc,xls}",
+        "options": {}
+      },
+      "id": "5e1c2fb6-20d6-4511-911d-f42281ec789e",
+      "name": "Read Documents",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        -3936,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "type": "SHA256",
+        "binaryData": true,
+        "dataPropertyName": "file_hash"
+      },
+      "id": "7e4cad0b-ccec-41cf-8714-ecda4578c5b1",
+      "name": "Generate Hash",
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 1,
+      "position": [
+        -3712,
+        816
+      ],
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process all file items at once\nconst allItems = $input.all();\nconst results = [];\n\n// Get the original items from Read Documents node to access binary data\nconst readDocumentsItems = $('Read Documents').all();\n\nfor (let i = 0; i < allItems.length; i++) {\n  const item = allItems[i];\n  \n  // Extract file metadata for each item\n  const fileName = item.json.fileName || 'unknown';\n  const fileSize = item.json.fileSize || '0';\n  const mimeType = item.json.mimeType || 'unknown';\n  const fileHash = item.json.file_hash;\n  \n  // Convert fileSize from string like \"116 kB\" to bytes\n  let fileSizeBytes = 0;\n  if (typeof fileSize === 'string') {\n    const sizeMatch = fileSize.match(/^([\\d.]+)\\s*(kB|MB|GB|B)?$/i);\n    if (sizeMatch) {\n      const value = parseFloat(sizeMatch[1]);\n      const unit = (sizeMatch[2] || 'B').toLowerCase();\n      switch (unit) {\n        case 'gb': fileSizeBytes = Math.round(value * 1024 * 1024 * 1024); break;\n        case 'mb': fileSizeBytes = Math.round(value * 1024 * 1024); break;\n        case 'kb': fileSizeBytes = Math.round(value * 1024); break;\n        default: fileSizeBytes = Math.round(value); break;\n      }\n    }\n  } else {\n    fileSizeBytes = parseInt(fileSize) || 0;\n  }\n  \n  // Get current timestamp in SQL Server format\n  const now = new Date().toISOString().replace('T', ' ').replace(/\\.\\d{3}Z$/, '');\n  \n  // Create result object with JSON data\n  const resultItem = {\n    json: {\n      file_hash: fileHash,\n      filename: fileName,\n      file_size: fileSizeBytes,\n      mime_type: mimeType,\n      created_at: now,\n      status: 'processing'\n    }\n  };\n  \n  // IMPORTANT: Get binary data from the Read Documents node\n  // This assumes the items are in the same order\n  if (readDocumentsItems[i] && readDocumentsItems[i].binary) {\n    resultItem.binary = readDocumentsItems[i].binary;\n  }\n  \n  // Add processed item to results array\n  results.push(resultItem);\n}\n\nreturn results;"
+      },
+      "id": "394a4471-f105-48df-a557-ee7f698c6e71",
+      "name": "Extract Metadata",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -3488,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "processing",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "3beff7a1-4a37-45ae-a423-fbd935e8ef95"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "processing"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "72c2abcd-3a5c-4849-a965-462f3aa966f6",
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "new_file",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "new_file"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -2832,
+        816
+      ],
+      "id": "672217d1-44be-43c0-92de-24f2a2ecdb3c",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "8b1103d5-bea2-4840-809f-3e311d2b8e3f",
+              "name": "file_hash",
+              "value": "={{ $('Deduplicate Files').item.json.file_hash }}",
+              "type": "string"
+            },
+            {
+              "id": "4d382462-2a15-4f5f-8bba-a602c8b22860",
+              "name": "filename",
+              "value": "={{ $('Deduplicate Files').item.json.filename }}",
+              "type": "string"
+            },
+            {
+              "id": "d1e3630d-77c1-4d6b-904a-d84a8f28e6cd",
+              "name": "file_size",
+              "value": "={{ $('Deduplicate Files').item.json.file_size }}",
+              "type": "number"
+            },
+            {
+              "id": "dddc7777-19f3-4f1e-aac5-ef86407cef64",
+              "name": "mime_type",
+              "value": "={{ $('Deduplicate Files').item.json.mime_type }}",
+              "type": "string"
+            },
+            {
+              "id": "c5b2c79e-e762-4b2a-941f-17b5580fb57d",
+              "name": "created_at",
+              "value": "={{ $('Deduplicate Files').item.json.created_at }}",
+              "type": "string"
+            },
+            {
+              "id": "a3c97eb5-d9c4-496c-913e-23477f940a35",
+              "name": "status",
+              "value": "={{ $json.status }}",
+              "type": "string"
+            },
+            {
+              "id": "ad4e6542-79e7-4d22-bfb1-881749b0cb3d",
+              "name": "fileExtension",
+              "value": "={{ $('Generate Hash').item.json.fileExtension }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -3056,
+        816
+      ],
+      "id": "3b299a8b-a400-4385-baf0-a4644408e78f",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "documents_collection",
+          "mode": "id"
+        },
+        "embeddingBatchSize": 100,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1.1,
+      "position": [
+        -48,
+        624
+      ],
+      "id": "ff28b78e-09bc-445e-9dd2-299e2ae7c963",
+      "name": "Qdrant Vector Store",
+      "retryOnFail": true,
+      "credentials": {
+        "qdrantApi": {
+          "id": "sFfERYppMeBnFNeA",
+          "name": "Local QdrantApi database"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "options": {
+          "timeout": 9999999
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -80,
+        848
+      ],
+      "id": "faa9841c-6cba-44ee-8ec9-051a74e96ef7",
+      "name": "Embeddings OpenAI"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8d239c98-427b-4496-a6b4-4802bdc1805f",
+              "leftValue": "={{ $json.fileExtension }}",
+              "rightValue": "xlsx",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        -2384,
+        208
+      ],
+      "id": "2a164255-68f5-4d66-985f-f0a6d1f594ec",
+      "name": "FilterInXLSX"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -2256,
+        1232
+      ],
+      "id": "2ede5c7c-8654-4aee-bbcd-d0e4a49baa22",
+      "name": "Loop Over Items2",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8d239c98-427b-4496-a6b4-4802bdc1805f",
+              "leftValue": "={{ $json.fileExtension }}",
+              "rightValue": "pdf",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        -2384,
+        1472
+      ],
+      "id": "a434f04c-e292-4ca0-b86d-1ee229321ca8",
+      "name": "Filter2"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8d239c98-427b-4496-a6b4-4802bdc1805f",
+              "leftValue": "={{ $json.fileExtension }}",
+              "rightValue": "docx",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        -2384,
+        816
+      ],
+      "id": "63523607-34d8-4151-b781-9cf6d19ed077",
+      "name": "Filter1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced Word Processor - Preserves Binary Data\nconst mammoth = require('mammoth');\n\n// Get the current input item\nconst inputItem = $input.first();\n\n// For Code nodes, try different binary access methods\nlet buffer;\ntry {\n    // Method 1: Try Function node syntax (if this is actually a Function node)\n    if (typeof this !== 'undefined' && this.helpers) {\n        buffer = await this.helpers.getBinaryDataBuffer(0, 'data');\n    } else {\n        // Method 2: Code node - access binary data directly\n        if (inputItem.binary && inputItem.binary.data && inputItem.binary.data.data) {\n            buffer = Buffer.from(inputItem.binary.data.data, 'base64');\n        } else {\n            throw new Error('No binary data accessible via Code node methods');\n        }\n    }\n} catch (error) {\n    return [{\n        json: {\n            error: true,\n            message: 'No binary data found in input',\n            accessMethod: typeof this !== 'undefined' && this.helpers ? 'function_node' : 'code_node',\n            debug: {\n                hasInputItem: !!inputItem,\n                hasBinary: !!inputItem.binary,\n                binaryKeys: inputItem.binary ? Object.keys(inputItem.binary) : [],\n                errorMessage: error.message\n            }\n        },\n        // IMPORTANT: Preserve original binary data even on error\n        binary: inputItem.binary || {}\n    }];\n}\n\nif (!buffer) {\n    return [{\n        json: {\n            error: true,\n            message: 'Empty buffer received'\n        },\n        // IMPORTANT: Preserve original binary data\n        binary: inputItem.binary || {}\n    }];\n}\n\ntry {\n    // Convert DOCX to HTML with structure preservation\n    const options = {\n        styleMap: [\n            \"p[style-name='Heading 1'] => h1:fresh\",\n            \"p[style-name='Heading 2'] => h2:fresh\", \n            \"p[style-name='Heading 3'] => h3:fresh\",\n            \"p[style-name='Title'] => h1:fresh\"\n        ]\n    };\n    \n    const result = await mammoth.convertToHtml({buffer: buffer}, options);\n    \n    // Convert HTML to structured markdown-like text\n    let structuredText = result.value\n        .replace(/<h1[^>]*>/g, '\\n# ')\n        .replace(/<\\/h1>/g, '\\n')\n        .replace(/<h2[^>]*>/g, '\\n## ')\n        .replace(/<\\/h2>/g, '\\n')\n        .replace(/<h3[^>]*>/g, '\\n### ')\n        .replace(/<\\/h3>/g, '\\n')\n        .replace(/<p[^>]*>/g, '\\n')\n        .replace(/<\\/p>/g, '\\n')\n        .replace(/<[^>]*>/g, '') // Remove remaining HTML tags\n        .replace(/\\n\\s*\\n/g, '\\n\\n') // Clean up excessive newlines\n        .trim();\n    \n    // Get filename from various sources\n    const fileName = inputItem.binary?.data?.fileName || \n                    inputItem.json?.fileName || \n                    inputItem.json?.filename || \n                    'document.docx';\n    \n    return [{\n        json: {\n            success: true,\n            text: structuredText,\n            html: result.value,\n            messages: result.messages,\n            wordCount: structuredText.split(/\\s+/).filter(word => word.length > 0).length,\n            fileName: fileName,\n            documentType: 'document',\n            // Preserve all original JSON data\n            ...inputItem.json\n        },\n        // CRITICAL: Preserve binary data for downstream nodes\n        binary: inputItem.binary || {}\n    }];\n    \n} catch (error) {\n    return [{\n        json: {\n            success: false,\n            error: error.message,\n            fileName: inputItem.binary?.data?.fileName || \n                     inputItem.json?.fileName || \n                     inputItem.json?.filename ||\n                     'document.docx',\n            // Preserve original JSON data\n            ...inputItem.json\n        },\n        // CRITICAL: Preserve binary data even on error\n        binary: inputItem.binary || {}\n    }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2000,
+        624
+      ],
+      "id": "343cf8f2-8067-4388-a858-bdbee74603da",
+      "name": "WordToText"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "id": "b4d3dd5c-d453-47cc-9f6c-470ea2901971",
+      "name": "Extract Text2",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -2016,
+        1248
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.fileExtension }}",
+                    "rightValue": "xlsx",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "c4d3bbd9-12a9-4465-a2d2-98eb927b1204"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "xlsx"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "766ebfb5-f3e7-4103-a8df-7e2bb48c2aa0",
+                    "leftValue": "={{ $json.fileExtension }}",
+                    "rightValue": "docx",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "docx"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "81c65234-0647-4fb9-b91a-2e759888479b",
+                    "leftValue": "={{ $json.fileExtension }}",
+                    "rightValue": "pdf",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "pdf"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -2608,
+        800
+      ],
+      "id": "8dc30ee0-2dcf-4409-b815-af176c0dbd8c",
+      "name": "Switch1"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "text",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        -1824,
+        0
+      ],
+      "id": "e517ae87-2279-47fa-83f8-af283619d2db",
+      "name": "Aggregate",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -2240,
+        0
+      ],
+      "id": "ac98f24e-cc10-44ad-b695-f162f45d750c",
+      "name": "Loop Over Items",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "content": "## Fetching local files",
+        "height": 220,
+        "width": 152
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -3968,
+        752
+      ],
+      "id": "db68f9a9-6618-4391-b75e-1cd442f06206",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "## Hash generation",
+        "height": 316,
+        "width": 1124,
+        "color": 2
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -4192,
+        672
+      ],
+      "id": "a03a46c8-4671-433a-8c0c-7c03706171a9",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "options": {}
+      },
+      "id": "4d681ab4-8f49-41e1-9795-91c858cf9479",
+      "name": "ExtractFromXLSX",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -2048,
+        0
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You are a JSON API that processes document chunks. You MUST respond with ONLY valid JSON, no other text. For each chunk, provide:\n1. A 50-80 word summary capturing main points\n2. 3-7 relevant topics/keywords that represent the content\n3. Document type classification\n4. Document number/ID (if mentioned in text)\n5. Creation/publication date (if mentioned in text)\n\nResponse format: [{\"id\": 1, \"summary\": \"...\", \"topics\": [\"topic1\", \"topic2\", \"topic3\"], \"documentType\": \"financial|legal|technical|general\", \"documentNumber\": \"DOC-2024-001\" or null, \"creationDate\": \"2024-03-15\" or null}]",
+              "role": "system"
+            },
+            {
+              "content": "=Process these chunks and return ONLY a JSON array. For each chunk, provide summary, topics, document type, and extract document number and creation date if mentioned in the text.\n\nExample format: \n[\n  {\n    \"id\": 1, \n    \"summary\": \"Financial report showing Q3 revenue growth...\", \n    \"topics\": [\"revenue growth\", \"quarterly earnings\", \"financial performance\"],\n    \"documentType\": \"financial\",\n    \"documentNumber\": \"RPT-2024-Q3-001\",\n    \"creationDate\": \"2024-09-30\"\n  },\n  {\n    \"id\": 2,\n    \"summary\": \"Meeting notes discussing project timeline...\",\n    \"topics\": [\"project timeline\", \"meeting notes\", \"deadlines\"],\n    \"documentType\": \"general\",\n    \"documentNumber\": null,\n    \"creationDate\": null\n  }\n]\n\nInstructions:\n- Extract document numbers from text (e.g., \"Document #123\", \"REF: ABC-2024\", \"Report ID: XYZ\")\n- Extract dates mentioned as creation/publication dates (format as YYYY-MM-DD)\n- Use null if document number or creation date not found in text\n- Don't make up document numbers or dates if not explicitly mentioned\n\nChunks to process:\n{{ JSON.stringify($json.chunks) }}"
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 500,
+          "temperature": 0.1
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        -1328,
+        624
+      ],
+      "id": "966ad093-1b8f-436c-9a60-293c11ead57d",
+      "name": "OpenAI1"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You are a JSON API that processes document chunks. You MUST respond with ONLY valid JSON, no other text. For each chunk, provide:\n1. A 50-80 word summary capturing main points\n2. 3-7 relevant topics/keywords that represent the content\n3. Document type classification\n4. Document number/ID (if mentioned in text)\n5. Creation/publication date (if mentioned in text)\n\nResponse format: [{\"id\": 1, \"summary\": \"...\", \"topics\": [\"topic1\", \"topic2\", \"topic3\"], \"documentType\": \"financial|legal|technical|general\", \"documentNumber\": \"DOC-2024-001\" or null, \"creationDate\": \"2024-03-15\" or null}]",
+              "role": "system"
+            },
+            {
+              "content": "=Process these chunks and return ONLY a JSON array. For each chunk, provide summary, topics, document type, and extract document number and creation date if mentioned in the text.\n\nExample format: \n[\n  {\n    \"id\": 1, \n    \"summary\": \"Financial report showing Q3 revenue growth...\", \n    \"topics\": [\"revenue growth\", \"quarterly earnings\", \"financial performance\"],\n    \"documentType\": \"financial\",\n    \"documentNumber\": \"RPT-2024-Q3-001\",\n    \"creationDate\": \"2024-09-30\"\n  },\n  {\n    \"id\": 2,\n    \"summary\": \"Meeting notes discussing project timeline...\",\n    \"topics\": [\"project timeline\", \"meeting notes\", \"deadlines\"],\n    \"documentType\": \"general\",\n    \"documentNumber\": null,\n    \"creationDate\": null\n  }\n]\n\nInstructions:\n- Extract document numbers from text (e.g., \"Document #123\", \"REF: ABC-2024\", \"Report ID: XYZ\")\n- Extract dates mentioned as creation/publication dates (format as YYYY-MM-DD)\n- Use null if document number or creation date not found in text\n- Don't make up document numbers or dates if not explicitly mentioned\n\nChunks to process:\n{{ JSON.stringify($json.chunks) }}"
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 500,
+          "temperature": 0.1
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        -1376,
+        0
+      ],
+      "id": "38f66315-9695-4a82-ac73-7b860f3ff4ef",
+      "name": "OpenAI2"
+    },
+    {
+      "parameters": {
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "metadata",
+                "value": "={{ $json.metadata }}"
+              },
+              {
+                "name": "PageContent",
+                "value": "={{ $json.pageContent }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1,
+      "position": [
+        48,
+        848
+      ],
+      "id": "d3506f6c-a516-45d8-a5c4-a79659d23c14",
+      "name": "Default Data Loader"
+    },
+    {
+      "parameters": {
+        "chunkOverlap": 100,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        128,
+        1056
+      ],
+      "id": "8f56b3e5-6a93-4145-98d7-38235fbbe68e",
+      "name": "Recursive Character Text Splitter"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You are a JSON API that processes document chunks. You MUST respond with ONLY valid JSON, no other text. For each chunk, provide:\n1. A 50-80 word summary capturing main points\n2. 3-7 relevant topics/keywords that represent the content\n3. Document type classification\n4. Document number/ID (if mentioned in text)\n5. Creation/publication date (if mentioned in text)\n\nResponse format: [{\"id\": 1, \"summary\": \"...\", \"topics\": [\"topic1\", \"topic2\", \"topic3\"], \"documentType\": \"financial|legal|technical|general\", \"documentNumber\": \"DOC-2024-001\" or null, \"creationDate\": \"2024-03-15\" or null}]",
+              "role": "system"
+            },
+            {
+              "content": "=Process these chunks and return ONLY a JSON array. For each chunk, provide summary, topics, document type, and extract document number and creation date if mentioned in the text.\n\nExample format: \n[\n  {\n    \"id\": 1, \n    \"summary\": \"Financial report showing Q3 revenue growth...\", \n    \"topics\": [\"revenue growth\", \"quarterly earnings\", \"financial performance\"],\n    \"documentType\": \"financial\",\n    \"documentNumber\": \"RPT-2024-Q3-001\",\n    \"creationDate\": \"2024-09-30\"\n  },\n  {\n    \"id\": 2,\n    \"summary\": \"Meeting notes discussing project timeline...\",\n    \"topics\": [\"project timeline\", \"meeting notes\", \"deadlines\"],\n    \"documentType\": \"general\",\n    \"documentNumber\": null,\n    \"creationDate\": null\n  }\n]\n\nInstructions:\n- Extract document numbers from text (e.g., \"Document #123\", \"REF: ABC-2024\", \"Report ID: XYZ\")\n- Extract dates mentioned as creation/publication dates (format as YYYY-MM-DD)\n- Use null if document number or creation date not found in text\n- Don't make up document numbers or dates if not explicitly mentioned\n\nChunks to process:\n{{ JSON.stringify($json.chunks) }}"
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 500,
+          "temperature": 0.1
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        -1344,
+        1248
+      ],
+      "id": "cb52dba5-0a38-4671-a4e2-0898ef8a5967",
+      "name": "OpenAI"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -2224,
+        608
+      ],
+      "id": "360d194f-13ed-441f-8936-ccb4af7252a1",
+      "name": "Loop Over Items1",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f4a25657-4d00-43c2-b792-aebe7d89107b",
+              "name": "text",
+              "value": "={{ $('WordToText').item.json.text }}",
+              "type": "string"
+            },
+            {
+              "id": "12ae588b-5e75-4398-a70c-f053a0030389",
+              "name": "summary",
+              "value": "={{ $json.summary }}",
+              "type": "string"
+            },
+            {
+              "id": "1b9ee46c-963d-4510-8376-af57fa48f8e3",
+              "name": "summaryId",
+              "value": "={{ $json.summaryId }}",
+              "type": "string"
+            },
+            {
+              "id": "1b1a0ee4-2331-4b2d-96d4-3c44b87fa2e1",
+              "name": "chunkId",
+              "value": "={{ $json.chunkId }}",
+              "type": "string"
+            },
+            {
+              "id": "d0dcc048-1291-4f21-9cfa-7d8305d5ed87",
+              "name": "topics",
+              "value": "={{ $json.topics }}",
+              "type": "array"
+            },
+            {
+              "id": "12d86336-45c2-4076-8638-64a7b773a97a",
+              "name": "processed",
+              "value": "={{ $json.processed }}",
+              "type": "string"
+            },
+            {
+              "id": "d9aabf06-4624-432f-b6ff-605d9d3d4b02",
+              "name": "processingTimestamp",
+              "value": "={{ $json.processingTimestamp }}",
+              "type": "string"
+            },
+            {
+              "id": "01e0b42e-53bf-4cfa-8dc2-9f03481ba3bb",
+              "name": "source",
+              "value": "={{ $json.source }}",
+              "type": "string"
+            },
+            {
+              "id": "9307e4b7-c500-4b6e-83a7-53913f44d8bf",
+              "name": "documentType",
+              "value": "={{ $json.documentType }}",
+              "type": "string"
+            },
+            {
+              "id": "3a102dff-a3e0-4e96-b133-b39fac68f32c",
+              "name": "complexity",
+              "value": "={{ $json.complexity }}",
+              "type": "string"
+            },
+            {
+              "id": "f5d4f734-6c4e-40db-9291-b4f9c90c9d0f",
+              "name": "fileName",
+              "value": "={{ $('WordToText').item.json.fileName }}",
+              "type": "string"
+            },
+            {
+              "id": "5600f5a9-5d46-4148-b1e4-14677e5605a1",
+              "name": "wordCount",
+              "value": "={{ $('WordToText').item.json.wordCount }}",
+              "type": "number"
+            },
+            {
+              "id": "fce01afb-4b70-43ce-9c65-6c79444667c5",
+              "name": "documentType",
+              "value": "={{ $('WordToText').item.json.documentType }}",
+              "type": "string"
+            },
+            {
+              "id": "6a6d4909-8d6b-4cdb-bfce-8d292842302b",
+              "name": "id",
+              "value": "={{ $('WordToText').item.json.id }}",
+              "type": "number"
+            },
+            {
+              "id": "0e598900-b67a-4936-bb86-d46f08164c6d",
+              "name": "status",
+              "value": "={{ $('WordToText').item.json.status }}",
+              "type": "string"
+            },
+            {
+              "id": "4442ad14-ab3d-498a-a8c0-edf72beac891",
+              "name": "processed_at",
+              "value": "={{ $('WordToText').item.json.processed_at }}",
+              "type": "string"
+            },
+            {
+              "id": "5dc2c199-e937-4ab3-a730-f73a49c632f8",
+              "name": "file_exists",
+              "value": "={{ $('WordToText').item.json.file_exists }}",
+              "type": "number"
+            },
+            {
+              "id": "0cb5238e-f94b-4c42-9131-ef652725b61e",
+              "name": "file_hash",
+              "value": "={{ $('WordToText').item.json.file_hash }}",
+              "type": "string"
+            },
+            {
+              "id": "0668b634-bb31-4799-b606-126c618e3c68",
+              "name": "file_size",
+              "value": "={{ $('WordToText').item.json.file_size }}",
+              "type": "number"
+            },
+            {
+              "id": "7f4f5253-bd4a-4707-8c05-6935ff1e0654",
+              "name": "mime_type",
+              "value": "={{ $('WordToText').item.json.mime_type }}",
+              "type": "string"
+            },
+            {
+              "id": "182cd1da-335b-424e-90e6-51dbb080e0b0",
+              "name": "created_at",
+              "value": "={{ $('WordToText').item.json.created_at }}",
+              "type": "string"
+            },
+            {
+              "id": "4083a9d5-c119-4fdb-877f-7f329d0e001c",
+              "name": "fileExtension",
+              "value": "={{ $('WordToText').item.json.fileExtension }}",
+              "type": "string"
+            },
+            {
+              "id": "60a73ab1-1283-4a45-a971-901f19726280",
+              "name": "creationDate",
+              "value": "={{ $json.creationDate }}",
+              "type": "string"
+            },
+            {
+              "id": "1210faff-dd21-4e6d-aac3-77550008705f",
+              "name": "documentNumber",
+              "value": "={{ $json.documentNumber }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -752,
+        624
+      ],
+      "id": "a9638658-5a44-4663-9cb9-84d11012df66",
+      "name": "Edit Fields",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f4a25657-4d00-43c2-b792-aebe7d89107b",
+              "name": "text",
+              "value": "={{ $('Aggregate').item.json.text }}",
+              "type": "string"
+            },
+            {
+              "id": "12ae588b-5e75-4398-a70c-f053a0030389",
+              "name": "summary",
+              "value": "={{ $json.summary }}",
+              "type": "string"
+            },
+            {
+              "id": "1b9ee46c-963d-4510-8376-af57fa48f8e3",
+              "name": "summaryId",
+              "value": "={{ $json.summaryId }}",
+              "type": "string"
+            },
+            {
+              "id": "1b1a0ee4-2331-4b2d-96d4-3c44b87fa2e1",
+              "name": "chunkId",
+              "value": "={{ $json.chunkId }}",
+              "type": "string"
+            },
+            {
+              "id": "d0dcc048-1291-4f21-9cfa-7d8305d5ed87",
+              "name": "topics",
+              "value": "={{ $json.topics }}",
+              "type": "array"
+            },
+            {
+              "id": "12d86336-45c2-4076-8638-64a7b773a97a",
+              "name": "processed",
+              "value": "={{ $json.processed }}",
+              "type": "string"
+            },
+            {
+              "id": "d9aabf06-4624-432f-b6ff-605d9d3d4b02",
+              "name": "processingTimestamp",
+              "value": "={{ $json.processingTimestamp }}",
+              "type": "string"
+            },
+            {
+              "id": "01e0b42e-53bf-4cfa-8dc2-9f03481ba3bb",
+              "name": "source",
+              "value": "={{ $json.source }}",
+              "type": "string"
+            },
+            {
+              "id": "9307e4b7-c500-4b6e-83a7-53913f44d8bf",
+              "name": "documentType",
+              "value": "={{ $json.documentType }}",
+              "type": "string"
+            },
+            {
+              "id": "3a102dff-a3e0-4e96-b133-b39fac68f32c",
+              "name": "complexity",
+              "value": "={{ $json.complexity }}",
+              "type": "string"
+            },
+            {
+              "id": "f5d4f734-6c4e-40db-9291-b4f9c90c9d0f",
+              "name": "fileName",
+              "value": "={{ $('Loop Over Items').item.json.filename }}",
+              "type": "string"
+            },
+            {
+              "id": "5600f5a9-5d46-4148-b1e4-14677e5605a1",
+              "name": "wordCount",
+              "value": "={{ $('Prepare Excel Batches').item.json.chunks[0].originalLength }}",
+              "type": "number"
+            },
+            {
+              "id": "fce01afb-4b70-43ce-9c65-6c79444667c5",
+              "name": "documentType",
+              "value": "={{ $('Loop Over Items').item.json.fileExtension }}",
+              "type": "string"
+            },
+            {
+              "id": "6a6d4909-8d6b-4cdb-bfce-8d292842302b",
+              "name": "id",
+              "value": "={{ $('Loop Over Items').item.json.id }}",
+              "type": "number"
+            },
+            {
+              "id": "0e598900-b67a-4936-bb86-d46f08164c6d",
+              "name": "status",
+              "value": "={{ $('Loop Over Items').item.json.status }}",
+              "type": "string"
+            },
+            {
+              "id": "4442ad14-ab3d-498a-a8c0-edf72beac891",
+              "name": "processed_at",
+              "value": "={{ $('Loop Over Items').item.json.processed_at }}",
+              "type": "string"
+            },
+            {
+              "id": "5dc2c199-e937-4ab3-a730-f73a49c632f8",
+              "name": "file_exists",
+              "value": "={{ $('Loop Over Items').item.json.file_size }}",
+              "type": "number"
+            },
+            {
+              "id": "0cb5238e-f94b-4c42-9131-ef652725b61e",
+              "name": "file_hash",
+              "value": "={{ $('Loop Over Items').item.json.file_hash }}",
+              "type": "string"
+            },
+            {
+              "id": "0668b634-bb31-4799-b606-126c618e3c68",
+              "name": "file_size",
+              "value": "={{ $('Loop Over Items').item.json.file_size }}",
+              "type": "number"
+            },
+            {
+              "id": "7f4f5253-bd4a-4707-8c05-6935ff1e0654",
+              "name": "mime_type",
+              "value": "={{ $('Loop Over Items').item.json.mime_type }}",
+              "type": "string"
+            },
+            {
+              "id": "182cd1da-335b-424e-90e6-51dbb080e0b0",
+              "name": "created_at",
+              "value": "={{ $('Loop Over Items').item.json.created_at }}",
+              "type": "string"
+            },
+            {
+              "id": "4083a9d5-c119-4fdb-877f-7f329d0e001c",
+              "name": "fileExtension",
+              "value": "={{ $('Loop Over Items').item.json.fileExtension }}",
+              "type": "string"
+            },
+            {
+              "id": "819ced20-1880-4a51-8ec2-460ea9cf7439",
+              "name": "documentNumber",
+              "value": "={{ $json.documentNumber }}",
+              "type": "string"
+            },
+            {
+              "id": "ad417f31-6cdf-4511-8fea-3754dcdc21d5",
+              "name": "creationDate",
+              "value": "={{ $json.creationDate }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -800,
+        0
+      ],
+      "id": "f62f186d-f3e8-41ae-aa69-5c83496f61d7",
+      "name": "Edit Fields3",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f4a25657-4d00-43c2-b792-aebe7d89107b",
+              "name": "text",
+              "value": "={{ $('Extract Text2').item.json.text }}",
+              "type": "string"
+            },
+            {
+              "id": "12ae588b-5e75-4398-a70c-f053a0030389",
+              "name": "summary",
+              "value": "={{ $json.summary }}",
+              "type": "string"
+            },
+            {
+              "id": "1b9ee46c-963d-4510-8376-af57fa48f8e3",
+              "name": "summaryId",
+              "value": "={{ $json.summaryId }}",
+              "type": "string"
+            },
+            {
+              "id": "1b1a0ee4-2331-4b2d-96d4-3c44b87fa2e1",
+              "name": "chunkId",
+              "value": "={{ $('PDF Text Processor').item.json.chunkId }}",
+              "type": "string"
+            },
+            {
+              "id": "d0dcc048-1291-4f21-9cfa-7d8305d5ed87",
+              "name": "topics",
+              "value": "={{ $json.topics }}",
+              "type": "array"
+            },
+            {
+              "id": "9307e4b7-c500-4b6e-83a7-53913f44d8bf",
+              "name": "documentType",
+              "value": "={{ $json.documentType }}",
+              "type": "string"
+            },
+            {
+              "id": "3a102dff-a3e0-4e96-b133-b39fac68f32c",
+              "name": "complexity",
+              "value": "={{ $json.complexity }}",
+              "type": "string"
+            },
+            {
+              "id": "f5d4f734-6c4e-40db-9291-b4f9c90c9d0f",
+              "name": "fileName",
+              "value": "={{ $('Loop Over Items2').item.json.filename }}",
+              "type": "string"
+            },
+            {
+              "id": "5600f5a9-5d46-4148-b1e4-14677e5605a1",
+              "name": "wordCount",
+              "value": "={{ $('Prepare PDF Batches').item.json.chunks[0].originalLength }}",
+              "type": "number"
+            },
+            {
+              "id": "fce01afb-4b70-43ce-9c65-6c79444667c5",
+              "name": "documentType",
+              "value": "={{ $('Loop Over Items2').item.json.fileExtension }}",
+              "type": "string"
+            },
+            {
+              "id": "6a6d4909-8d6b-4cdb-bfce-8d292842302b",
+              "name": "id",
+              "value": "={{ $('Loop Over Items2').item.json.id }}",
+              "type": "number"
+            },
+            {
+              "id": "0e598900-b67a-4936-bb86-d46f08164c6d",
+              "name": "status",
+              "value": "={{ $('Loop Over Items2').item.json.status }}",
+              "type": "string"
+            },
+            {
+              "id": "4442ad14-ab3d-498a-a8c0-edf72beac891",
+              "name": "processed_at",
+              "value": "={{ $('Loop Over Items2').item.json.processed_at }}",
+              "type": "string"
+            },
+            {
+              "id": "5dc2c199-e937-4ab3-a730-f73a49c632f8",
+              "name": "file_exists",
+              "value": "={{ $('Loop Over Items2').item.json.file_exists }}",
+              "type": "number"
+            },
+            {
+              "id": "0cb5238e-f94b-4c42-9131-ef652725b61e",
+              "name": "file_hash",
+              "value": "={{ $('Loop Over Items2').item.json.file_hash }}",
+              "type": "string"
+            },
+            {
+              "id": "0668b634-bb31-4799-b606-126c618e3c68",
+              "name": "file_size",
+              "value": "={{ $('Loop Over Items2').item.json.file_size }}",
+              "type": "number"
+            },
+            {
+              "id": "7f4f5253-bd4a-4707-8c05-6935ff1e0654",
+              "name": "mime_type",
+              "value": "={{ $('Loop Over Items2').item.json.mime_type }}",
+              "type": "string"
+            },
+            {
+              "id": "182cd1da-335b-424e-90e6-51dbb080e0b0",
+              "name": "created_at",
+              "value": "={{ $('Loop Over Items2').item.json.created_at }}",
+              "type": "string"
+            },
+            {
+              "id": "4083a9d5-c119-4fdb-877f-7f329d0e001c",
+              "name": "fileExtension",
+              "value": "={{ $('Loop Over Items2').item.json.fileExtension }}",
+              "type": "string"
+            },
+            {
+              "id": "2202f7c6-4959-4a03-8cd6-85b201f5ebc2",
+              "name": "documentNumber",
+              "value": "={{ $json.documentNumber }}",
+              "type": "string"
+            },
+            {
+              "id": "7cebb888-22cc-4c8b-a936-5cb470c07457",
+              "name": "creationDate",
+              "value": "={{ $json.creationDate }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -768,
+        1248
+      ],
+      "id": "51d6d207-419a-4b6b-8edf-ca6dc4c3b5bc",
+      "name": "Edit Fields4",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all input items\nconst allItems = $input.all();\n\n// Create a map to track files by hash\n// This will help us identify which files are duplicates\nconst hashMap = new Map();\n\n// First pass: Group all files by their hash\nallItems.forEach((item, index) => {\n  const fileData = item.json;\n  const fileHash = fileData.file_hash;\n  \n  if (!fileHash) {\n    // If no hash, treat as unique (or you can skip these)\n    console.log(`Warning: File \"${fileData.filename}\" has no hash`);\n    return;\n  }\n  \n  if (!hashMap.has(fileHash)) {\n    hashMap.set(fileHash, []);\n  }\n  \n  // Store the item with its original index\n  hashMap.get(fileHash).push({\n    item: item,\n    index: index,\n    data: fileData\n  });\n});\n\n// Second pass: Decide which files to keep\nconst uniqueFiles = [];\nconst duplicateFiles = [];\n\nhashMap.forEach((filesWithSameHash, hash) => {\n  if (filesWithSameHash.length === 1) {\n    // Only one file with this hash - it's unique\n    uniqueFiles.push(filesWithSameHash[0].item);\n  } else {\n    // Multiple files with same hash - need to decide which to keep\n    console.log(`Found ${filesWithSameHash.length} files with hash: ${hash}`);\n    \n    // Strategy options (choose one):\n    \n    const keeper = filesWithSameHash[0];\n    uniqueFiles.push(keeper.item);\n    \n    // Add the rest to duplicates\n    filesWithSameHash.forEach((file, idx) => {\n      if (idx !== 0) { // Skip the keeper (assuming Option 1)\n        duplicateFiles.push({\n          ...file.data,\n          duplicate_of_hash: hash,\n          duplicate_of_file: keeper.data.filename,\n          reason: 'Duplicate hash detected'\n        });\n      }\n    });\n  }\n});\n\n// Add files without hash to unique files (optional)\nconst filesWithoutHash = allItems.filter(item => !item.json.file_hash);\nif (filesWithoutHash.length > 0) {\n  console.log(`${filesWithoutHash.length} files without hash will be included`);\n  uniqueFiles.push(...filesWithoutHash);\n}\n\n// Log summary\nconsole.log('=== Duplicate Removal Summary ===');\nconsole.log(`Total files processed: ${allItems.length}`);\nconsole.log(`Unique files: ${uniqueFiles.length}`);\nconsole.log(`Duplicate files removed: ${duplicateFiles.length}`);\nconsole.log(`Files without hash: ${filesWithoutHash.length}`);\n\nif (duplicateFiles.length > 0) {\n  console.log('\\n=== Removed Duplicates ===');\n  duplicateFiles.forEach(dup => {\n    console.log(`- \"${dup.filename}\" (duplicate of \"${dup.duplicate_of_file}\")`);\n  });\n}\n\n// Return only unique files\nreturn uniqueFiles;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3264,
+        816
+      ],
+      "id": "0c569da7-f210-441e-a351-c97b1da39364",
+      "name": "Deduplicate Files"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $input.first().json.text;\nconst fileName = $input.first().json.filename;\n\n// Token estimation (1 token ≈ 4 characters)\nconst maxTokens = 120000;\nconst maxChars = maxTokens * 4; // 48,000 characters\n\nlet processedText = text;\nlet wasTruncated = false;\n\n// If document exceeds 12k tokens, truncate to first 12k tokens\nif (text.length > maxChars) {\n  // Smart truncation - try to end at sentence boundary\n  let truncateAt = maxChars;\n  \n  // Look backwards from max position to find a good break point\n  const searchText = text.substring(Math.max(0, maxChars - 200), maxChars + 200);\n  const sentenceEnd = searchText.lastIndexOf('. ');\n  const paragraphEnd = searchText.lastIndexOf('\\n\\n');\n  \n  // Use the best available break point\n  if (sentenceEnd > -1) {\n    truncateAt = maxChars - 200 + sentenceEnd + 2; // +2 for '. '\n  } else if (paragraphEnd > -1) {\n    truncateAt = maxChars - 200 + paragraphEnd + 2; // +2 for '\\n\\n'\n  }\n  \n  processedText = text.substring(0, truncateAt).trim();\n  wasTruncated = true;\n}\n\nconst finalTokens = Math.ceil(processedText.length / 4);\n\nreturn [{\n  json: {\n    ...($input.first().json),\n    text: processedText,\n    chunkId: 0,\n    totalChunks: 1,\n    needsSummarization: false,\n    estimatedTokens: finalTokens,\n    wasTruncated: wasTruncated,\n    originalLength: text.length,\n    truncatedLength: processedText.length,\n    processingStrategy: 'single_12k_chunk'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1792,
+        1248
+      ],
+      "id": "2bf448f3-616c-416f-acac-155499056a00",
+      "name": "PDF Text Processor"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced Document Formatter - Fixed fileName issue\nconst items = $input.all();\nconst results = [];\n\nitems.forEach(item => {\n  const docData = item.json;\n  \n  // Get the FULL document text\n  let fullText = docData.text || '';\n  \n  // Skip if no real content\n  if (!fullText || fullText.trim().length < 50) {\n    console.warn(`Skipping document with insufficient content: ${docData.fileName || docData.filename}`);\n    return;\n  }\n  \n  // Fix: Check both fileName and filename\n  const filename = docData.fileName || docData.filename || 'unknown';\n  \n  // Store ONLY the document text in pageContent for cleaner embeddings\n  const vectorStoreItem = {\n    json: {\n      // Clean document text only - better for embeddings\n      pageContent: fullText.trim(),\n      \n      // All enrichment data goes in metadata\n      metadata: {\n        filename: filename,\n        documentType: docData.documentType || 'unknown',\n        fileExtension: docData.fileExtension || 'unknown',\n        file_hash: docData.file_hash,\n        chunkId: docData.chunkId || 0,\n        totalChunks: docData.totalChunks || 1,\n        \n        // Enrichment data in metadata, not in pageContent\n        summary: docData.summary || '',\n        topics: docData.topics || [],\n        \n        created_at: docData.created_at,\n        file_size: docData.file_size,\n        content_length: fullText.length,\n        \n        // For search/filtering - now will show the actual filename\n        searchable_summary: docData.summary ? \n          `${filename} - ${docData.summary}` : '',\n        \n        // Document-specific metadata\n        ...(docData.documentType === 'spreadsheet' && {\n          sheetName: docData.sheetName,\n          rowRange: docData.rowRange\n        }),\n        ...(docData.documentType === 'document' && {\n          sectionTitle: docData.sectionTitle,\n          sectionLevel: docData.sectionLevel\n        })\n      }\n    }\n  };\n  \n  // Include binary data if needed\n  if (item.binary && Object.keys(item.binary).length > 0) {\n    vectorStoreItem.binary = item.binary;\n  }\n  \n  results.push(vectorStoreItem);\n});\n\nconsole.log(`Processed ${results.length} documents for vector store`);\nconsole.log(`First doc size: ${results[0]?.json.pageContent.length} chars`);\nconsole.log(`Filename: ${results[0]?.json.metadata.filename}`);\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -544,
+        1248
+      ],
+      "id": "1b8c882b-6c46-4909-a847-8d1d686f9948",
+      "name": "Format for Vector Store (PDF)",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const chunk = $input.first(); // Only one chunk now\n\n// Since we're only processing one 12k token chunk, no batching required\nreturn [{\n  json: {\n    chunks: [{\n      id: 1,\n      text: chunk.json.text, // Full text (already truncated to 12k tokens)\n      chunkId: chunk.json.chunkId,\n      totalChunks: chunk.json.totalChunks,\n      estimatedTokens: chunk.json.estimatedTokens,\n      wasTruncated: chunk.json.wasTruncated || false,\n      originalLength: chunk.json.originalLength,\n      processingStrategy: chunk.json.processingStrategy\n    }],\n    chunkCount: 1,\n    batchIndex: 0,\n    totalBatches: 1,\n    estimatedTokens: chunk.json.estimatedTokens,\n    \n    // Original metadata\n    originalData: [{\n      filename: chunk.json.filename,\n      file_hash: chunk.json.file_hash,\n      file_size: chunk.json.file_size,\n      mime_type: chunk.json.mime_type,\n      created_at: chunk.json.created_at,\n      fileExtension: chunk.json.fileExtension,\n      chunkId: chunk.json.chunkId,\n      totalChunks: chunk.json.totalChunks,\n      estimatedTokens: chunk.json.estimatedTokens,\n      wasTruncated: chunk.json.wasTruncated\n    }]\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1568,
+        1248
+      ],
+      "id": "3778c442-adab-403c-b986-2c9c475451c1",
+      "name": "Prepare PDF Batches"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst originalData = response.originalData || [];\n\nconsole.log('=== DEBUGGING UNBATCH PROCESS ===');\nconsole.log('Response structure:', typeof response);\nconsole.log('Response keys:', Object.keys(response));\n\n// Extract content from OpenAI response - handle different structures\nlet content = '';\n\n// Check if response is an array (your structure)\nif (Array.isArray(response)) {\n  console.log('Response is array, length:', response.length);\n  if (response.length > 0 && response[0].message && response[0].message.content) {\n    content = response[0].message.content;\n    console.log('Found content in response[0].message.content');\n  }\n} \n// Check if response has message.content directly\nelse if (response.message && response.message.content) {\n  content = response.message.content;\n  console.log('Found content in response.message.content');\n} \n// Check other possible locations\nelse if (response.content) {\n  content = response.content;\n  console.log('Found content in response.content');\n} \nelse {\n  console.error('No content found in OpenAI response');\n  console.log('Full response:', JSON.stringify(response, null, 2));\n}\n\nconsole.log('Content type:', typeof content);\nconsole.log('Content preview:', String(content).substring(0, 200));\n\n// Parse summaries from content\nlet summaries = [];\ntry {\n  if (!content) {\n    throw new Error('No content to parse');\n  }\n  \n  let cleanContent = String(content).trim();\n  \n  // Remove markdown code blocks if present\n  cleanContent = cleanContent.replace(/```json\\s*/g, '').replace(/```\\s*/g, '');\n  \n  // Parse JSON\n  if (cleanContent.startsWith('[')) {\n    summaries = JSON.parse(cleanContent);\n    console.log(`Successfully parsed ${summaries.length} summaries from array`);\n  } else if (cleanContent.startsWith('{')) {\n    const parsed = JSON.parse(cleanContent);\n    summaries = Array.isArray(parsed) ? parsed : [parsed];\n    console.log(`Successfully parsed single object, converted to array`);\n  } else {\n    // Try to extract JSON array from mixed content\n    const jsonMatch = cleanContent.match(/\\[[^\\]]*\\]/s);\n    if (jsonMatch) {\n      summaries = JSON.parse(jsonMatch[0]);\n      console.log(`Extracted JSON from mixed content`);\n    } else {\n      throw new Error('No valid JSON found in content');\n    }\n  }\n  \n  // Validate summaries structure\n  summaries.forEach((summary, index) => {\n    console.log(`Summary ${index}:`, {\n      hasId: 'id' in summary,\n      hasSummary: 'summary' in summary,\n      hasTopics: 'topics' in summary,\n      topicsLength: summary.topics ? summary.topics.length : 0,\n      hasDocumentType: 'documentType' in summary\n    });\n  });\n  \n} catch (error) {\n  console.error('Error parsing OpenAI content:', error.message);\n  console.log('Raw content that failed to parse:', content);\n  \n  // Create fallback summaries\n  const numSummaries = originalData.length || 1;\n  summaries = Array.from({length: numSummaries}, (_, index) => ({\n    id: index,\n    summary: `Summary ${index + 1} - parsing error: ${error.message}`,\n    topics: [],\n    documentType: \"unknown\",\n    documentNumber: null,\n    creationDate: null\n  }));\n}\n\n// Map summaries back to original data\nconst results = [];\n\nsummaries.forEach((summary, index) => {\n  const originalItem = originalData[index] || {};\n  \n  // Extract all fields from AI response\n  const summaryText = summary.summary || '';\n  const topics = summary.topics || [];\n  const documentType = summary.documentType || 'general';\n  const documentNumber = summary.documentNumber || null;\n  const creationDate = summary.creationDate || null;\n  \n  console.log(`Processing summary ${index}:`, {\n    summaryLength: summaryText.length,\n    topicsCount: topics.length,\n    documentType: documentType,\n    hasDocumentNumber: !!documentNumber,\n    hasCreationDate: !!creationDate\n  });\n  \n  results.push({\n    json: {\n      ...originalItem,\n      summary: summaryText,\n      topics: topics, // Make sure topics are included!\n      documentType: documentType,\n      documentNumber: documentNumber,\n      creationDate: creationDate,\n      aiProcessed: true,\n      hasDocumentNumber: !!documentNumber,\n      hasCreationDate: !!creationDate,\n      summaryId: summary.id || index,\n      processed: true,\n      processingTimestamp: new Date().toISOString(),\n      source: 'ai_extraction'\n    }\n  });\n});\n\nconsole.log(`=== FINAL RESULTS ===`);\nconsole.log(`Returning ${results.length} processed chunks`);\nif (results.length > 0) {\n  console.log('Sample result topics:', results[0].json.topics);\n  console.log('Sample result keys:', Object.keys(results[0].json));\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -992,
+        1248
+      ],
+      "id": "702ea418-c62e-40ef-9734-bd240531a405",
+      "name": "Unbatch PDF Results"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced Smart Chunker with Error Handling\nconst inputItem = $input.first();\n\n// ERROR HANDLING: Check if text extraction was successful\nif (!inputItem.json.success || inputItem.json.error) {\n  console.log(`Skipping failed file: ${inputItem.json.fileName || inputItem.json.filename}`);\n  console.log(`Error: ${inputItem.json.error}`);\n  \n  // Return empty result or error placeholder\n  return [{\n    json: {\n      ...inputItem.json,\n      text: '', // Empty text\n      chunkId: 0,\n      totalChunks: 0,\n      needsSummarization: false,\n      estimatedTokens: 0,\n      chunkingStrategy: 'error',\n      documentType: 'error',\n      processingError: true,\n      errorMessage: inputItem.json.error\n    },\n    binary: inputItem.binary || {}\n  }];\n}\n\n// SAFE TEXT EXTRACTION with fallbacks\nconst text = inputItem.json.text || inputItem.json.content || inputItem.json.summary || '';\nconst fileName = inputItem.json.filename || inputItem.json.fileName || 'unknown';\nconst fileExtension = inputItem.json.fileExtension || 'unknown';\n\n// Skip empty text\nif (!text || text.length === 0) {\n  console.log(`No text content found in file: ${fileName}`);\n  return [{\n    json: {\n      ...inputItem.json,\n      text: '',\n      chunkId: 0,\n      totalChunks: 0,\n      needsSummarization: false,\n      estimatedTokens: 0,\n      chunkingStrategy: 'empty',\n      documentType: 'empty',\n      processingError: true,\n      errorMessage: 'No text content found'\n    },\n    binary: inputItem.binary || {}\n  }];\n}\n\n// Determine document type from file extension and content\nlet documentType = 'general';\nif (fileExtension === 'xlsx' || fileExtension === 'xls') {\n  documentType = 'spreadsheet';\n} else if (fileExtension === 'docx' || fileExtension === 'doc') {\n  documentType = 'document';\n} else if (fileExtension === 'pdf') {\n  documentType = 'pdf';\n}\n\n// Document-specific chunking strategies\nconst CHUNKING_STRATEGIES = {\n  'spreadsheet': {\n    maxTokens: 10000,\n    preferredSplit: /\\n(?=Sheet:|Headers:|Row [0-9]+:)/,\n    fallbackSplit: /\\n\\n/,\n    preserveContext: true\n  },\n  'document': {\n    maxTokens: 10000,\n    preferredSplit: /\\n(?=#\\s|## |### )/,  // Split on headings\n    fallbackSplit: /\\n\\n/,\n    preserveContext: true\n  },\n  'pdf': {\n    maxTokens: 10000,\n    preferredSplit: /\\n\\n/,\n    fallbackSplit: /\\./,\n    preserveContext: false\n  },\n  'general': {\n    maxTokens: 10000,\n    preferredSplit: /\\n\\n/,\n    fallbackSplit: /\\./,\n    preserveContext: false\n  }\n};\n\nconst strategy = CHUNKING_STRATEGIES[documentType];\nconst estimatedTokens = Math.ceil(text.length / 4);\n\n// If under threshold, process as single chunk\nif (estimatedTokens < strategy.maxTokens) {\n  return [{\n    json: {\n      ...inputItem.json,\n      text: text,\n      chunkId: 0,\n      totalChunks: 1,\n      needsSummarization: false,\n      estimatedTokens: estimatedTokens,\n      chunkingStrategy: 'single',\n      documentType: documentType,\n      processingError: false\n    },\n    // CRITICAL: Preserve binary data\n    binary: inputItem.binary || {}\n  }];\n}\n\n// Enhanced chunking function\nfunction smartChunk(text, strategy, documentType) {\n  const chunks = [];\n  const maxCharsPerChunk = strategy.maxTokens * 4;\n  \n  // Document-specific processing\n  if (documentType === 'spreadsheet') {\n    // For Excel: preserve sheet and row context\n    const sections = text.split(/\\n(?=Sheet:)/);\n    \n    sections.forEach(section => {\n      if (section.trim()) {\n        const sectionTokens = Math.ceil(section.length / 4);\n        \n        if (sectionTokens <= strategy.maxTokens) {\n          chunks.push(section.trim());\n        } else {\n          // Split large sheets by row groups\n          const rows = section.split(/\\n(?=Row [0-9]+:)/);\n          let currentChunk = rows[0] || ''; // Include sheet header\n          \n          rows.slice(1).forEach(row => {\n            const rowTokens = Math.ceil(row.length / 4);\n            const currentTokens = Math.ceil(currentChunk.length / 4);\n            \n            if (currentTokens + rowTokens > strategy.maxTokens && currentChunk.length > 100) {\n              chunks.push(currentChunk.trim());\n              currentChunk = (rows[0] || '') + '\\n' + row; // Keep sheet context\n            } else {\n              currentChunk += '\\n' + row;\n            }\n          });\n          \n          if (currentChunk.trim()) {\n            chunks.push(currentChunk.trim());\n          }\n        }\n      }\n    });\n  } \n  else if (documentType === 'document') {\n    // For Word: preserve heading hierarchy\n    const sections = text.split(strategy.preferredSplit);\n    let currentChunk = '';\n    let currentTokens = 0;\n    let lastHeading = '';\n    \n    sections.forEach(section => {\n      if (section.trim()) {\n        // Check if this is a heading\n        const isHeading = section.match(/^#+\\s/);\n        if (isHeading) {\n          lastHeading = section.split('\\n')[0];\n        }\n        \n        const sectionTokens = Math.ceil(section.length / 4);\n        \n        if (currentTokens + sectionTokens > strategy.maxTokens && currentChunk) {\n          chunks.push(currentChunk.trim());\n          // Start new chunk with heading context if available\n          currentChunk = lastHeading ? lastHeading + '\\n\\n' + section : section;\n          currentTokens = Math.ceil(currentChunk.length / 4);\n        } else {\n          currentChunk += (currentChunk ? '\\n\\n' : '') + section;\n          currentTokens += sectionTokens;\n        }\n      }\n    });\n    \n    if (currentChunk.trim()) {\n      chunks.push(currentChunk.trim());\n    }\n  }\n  else {\n    // Standard chunking for PDF and other types\n    const segments = text.split(strategy.preferredSplit);\n    let currentChunk = '';\n    let currentTokens = 0;\n    \n    segments.forEach(segment => {\n      const segmentTokens = Math.ceil(segment.length / 4);\n      \n      if (currentTokens + segmentTokens > strategy.maxTokens && currentChunk) {\n        chunks.push(currentChunk.trim());\n        currentChunk = segment;\n        currentTokens = segmentTokens;\n      } else {\n        currentChunk += segment;\n        currentTokens += segmentTokens;\n      }\n    });\n    \n    if (currentChunk) {\n      chunks.push(currentChunk.trim());\n    }\n  }\n  \n  return chunks.filter(chunk => chunk.length > 50); // Filter out tiny chunks\n}\n\nconst chunks = smartChunk(text, strategy, documentType);\n\n// Return chunks for processing - PRESERVE BINARY DATA\nreturn chunks.map((chunk, index) => ({\n  json: {\n    ...inputItem.json,\n    text: chunk,\n    chunkId: index,\n    totalChunks: chunks.length,\n    needsSummarization: chunks.length > 1,\n    estimatedTokens: Math.ceil(chunk.length / 4),\n    originalLength: text.length,\n    chunkingStrategy: documentType,\n    documentType: documentType,\n    processingError: false\n  },\n  // CRITICAL: Preserve binary data for each chunk\n  binary: inputItem.binary || {}\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1776,
+        624
+      ],
+      "id": "cba928cd-b13d-49de-9c02-50cf39e04a31",
+      "name": "DOCX Chunker"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fixed Batch Chunks for OpenAI - Groups individual chunks properly with binary data preserved\nconst allChunks = $input.all();\nconst BATCH_SIZE = 3; // Reduced for better OpenAI processing\nconsole.log(`Processing ${allChunks.length} chunks`);\n\n// Group chunks by document (file_hash) first\nconst documentGroups = {};\nallChunks.forEach(item => {\n  const fileHash = item.json.file_hash;\n  if (!documentGroups[fileHash]) {\n    documentGroups[fileHash] = [];\n  }\n  documentGroups[fileHash].push(item);\n});\n\nconst batches = [];\n\n// Process each document's chunks\nObject.values(documentGroups).forEach(docChunks => {\n  // Sort chunks by chunkId to maintain order\n  docChunks.sort((a, b) => (a.json.chunkId || 0) - (b.json.chunkId || 0));\n  \n  // Create batches from this document's chunks\n  for (let i = 0; i < docChunks.length; i += BATCH_SIZE) {\n    const batch = docChunks.slice(i, i + BATCH_SIZE);\n    \n    // Create chunks array for OpenAI processing\n    const chunksForProcessing = batch.map((item, index) => ({\n      id: item.json.chunkId || (i + index),\n      text: item.json.text ? item.json.text.substring(0, 1500) : '', // Limit text length\n      filename: item.json.filename || item.json.fileName,\n      documentType: item.json.documentType\n    }));\n    \n    // Only create batch if we have valid text chunks\n    const validChunks = chunksForProcessing.filter(chunk => chunk.text && chunk.text.length > 50);\n    \n    if (validChunks.length > 0) {\n      // Prepare the batch object with both JSON data for OpenAI and preserved binary data\n      const batchItem = {\n        json: {\n          chunks: validChunks, // This is what OpenAI prompt expects!\n          chunkCount: validChunks.length,\n          batchIndex: batches.length,\n          documentInfo: {\n            filename: batch[0].json.filename || batch[0].json.fileName,\n            file_hash: batch[0].json.file_hash,\n            documentType: batch[0].json.documentType,\n            totalChunks: batch[0].json.totalChunks\n          },\n          // Store original data for reconstruction\n          originalData: batch.map(b => ({\n            file_hash: b.json.file_hash,\n            filename: b.json.filename || b.json.fileName,\n            chunkId: b.json.chunkId,\n            totalChunks: b.json.totalChunks,\n            estimatedTokens: b.json.estimatedTokens,\n            documentType: b.json.documentType,\n            fileExtension: b.json.fileExtension,\n            created_at: b.json.created_at,\n            file_size: b.json.file_size\n          }))\n        }\n      };\n\n      // Preserve binary data from the first item in the batch (if it exists)\n      // This ensures binary data flows through to subsequent nodes\n      const firstItemWithBinary = batch.find(item => item.binary && Object.keys(item.binary).length > 0);\n      if (firstItemWithBinary && firstItemWithBinary.binary) {\n        // Copy all binary data properties to maintain compatibility\n        batchItem.binary = { ...firstItemWithBinary.binary };\n        \n        // Add a flag to indicate binary data is preserved\n        batchItem.json.hasBinaryData = true;\n        batchItem.json.binaryDataKeys = Object.keys(firstItemWithBinary.binary);\n      } else {\n        batchItem.json.hasBinaryData = false;\n      }\n\n      batches.push(batchItem);\n    } \n  } \n}); \n\nconsole.log(`Created ${batches.length} batches for OpenAI processing`);\n\n// Log binary data preservation stats\nconst batchesWithBinary = batches.filter(b => b.json.hasBinaryData).length;\nconsole.log(`${batchesWithBinary} batches contain preserved binary data`);\n\nif (batches.length === 0) {\n  return [{\n    json: {\n      error: true,\n      message: 'No valid chunks found for processing',\n      debug: {\n        totalInputChunks: allChunks.length,\n        sampleInput: allChunks[0] ? Object.keys(allChunks[0].json) : [],\n        documentsFound: Object.keys(documentGroups).length,\n        hasBinaryData: allChunks.some(item => item.binary && Object.keys(item.binary).length > 0)\n      }\n    }\n  }];\n}\n\nreturn batches;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1552,
+        624
+      ],
+      "id": "47183d84-c203-4e8a-b58c-53ebc9b3bc86",
+      "name": "Prepare DOCX Batches"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst originalData = response.originalData || [];\n\nconsole.log('=== DEBUGGING UNBATCH PROCESS ===');\nconsole.log('Response structure:', typeof response);\nconsole.log('Response keys:', Object.keys(response));\n\n// Extract content from OpenAI response - handle different structures\nlet content = '';\n\n// Check if response is an array (your structure)\nif (Array.isArray(response)) {\n  console.log('Response is array, length:', response.length);\n  if (response.length > 0 && response[0].message && response[0].message.content) {\n    content = response[0].message.content;\n    console.log('Found content in response[0].message.content');\n  }\n} \n// Check if response has message.content directly\nelse if (response.message && response.message.content) {\n  content = response.message.content;\n  console.log('Found content in response.message.content');\n} \n// Check other possible locations\nelse if (response.content) {\n  content = response.content;\n  console.log('Found content in response.content');\n} \nelse {\n  console.error('No content found in OpenAI response');\n  console.log('Full response:', JSON.stringify(response, null, 2));\n}\n\nconsole.log('Content type:', typeof content);\nconsole.log('Content preview:', String(content).substring(0, 200));\n\n// Parse summaries from content\nlet summaries = [];\ntry {\n  if (!content) {\n    throw new Error('No content to parse');\n  }\n  \n  let cleanContent = String(content).trim();\n  \n  // Remove markdown code blocks if present\n  cleanContent = cleanContent.replace(/```json\\s*/g, '').replace(/```\\s*/g, '');\n  \n  // Parse JSON\n  if (cleanContent.startsWith('[')) {\n    summaries = JSON.parse(cleanContent);\n    console.log(`Successfully parsed ${summaries.length} summaries from array`);\n  } else if (cleanContent.startsWith('{')) {\n    const parsed = JSON.parse(cleanContent);\n    summaries = Array.isArray(parsed) ? parsed : [parsed];\n    console.log(`Successfully parsed single object, converted to array`);\n  } else {\n    // Try to extract JSON array from mixed content\n    const jsonMatch = cleanContent.match(/\\[[^\\]]*\\]/s);\n    if (jsonMatch) {\n      summaries = JSON.parse(jsonMatch[0]);\n      console.log(`Extracted JSON from mixed content`);\n    } else {\n      throw new Error('No valid JSON found in content');\n    }\n  }\n  \n  // Validate summaries structure\n  summaries.forEach((summary, index) => {\n    console.log(`Summary ${index}:`, {\n      hasId: 'id' in summary,\n      hasSummary: 'summary' in summary,\n      hasTopics: 'topics' in summary,\n      topicsLength: summary.topics ? summary.topics.length : 0,\n      hasDocumentType: 'documentType' in summary\n    });\n  });\n  \n} catch (error) {\n  console.error('Error parsing OpenAI content:', error.message);\n  console.log('Raw content that failed to parse:', content);\n  \n  // Create fallback summaries\n  const numSummaries = originalData.length || 1;\n  summaries = Array.from({length: numSummaries}, (_, index) => ({\n    id: index,\n    summary: `Summary ${index + 1} - parsing error: ${error.message}`,\n    topics: [],\n    documentType: \"unknown\",\n    documentNumber: null,\n    creationDate: null\n  }));\n}\n\n// Map summaries back to original data\nconst results = [];\n\nsummaries.forEach((summary, index) => {\n  const originalItem = originalData[index] || {};\n  \n  // Extract all fields from AI response\n  const summaryText = summary.summary || '';\n  const topics = summary.topics || [];\n  const documentType = summary.documentType || 'general';\n  const documentNumber = summary.documentNumber || null;\n  const creationDate = summary.creationDate || null;\n  \n  console.log(`Processing summary ${index}:`, {\n    summaryLength: summaryText.length,\n    topicsCount: topics.length,\n    documentType: documentType,\n    hasDocumentNumber: !!documentNumber,\n    hasCreationDate: !!creationDate\n  });\n  \n  results.push({\n    json: {\n      ...originalItem,\n      summary: summaryText,\n      topics: topics, // Make sure topics are included!\n      documentType: documentType,\n      documentNumber: documentNumber,\n      creationDate: creationDate,\n      aiProcessed: true,\n      hasDocumentNumber: !!documentNumber,\n      hasCreationDate: !!creationDate,\n      summaryId: summary.id || index,\n      processed: true,\n      processingTimestamp: new Date().toISOString(),\n      source: 'ai_extraction'\n    }\n  });\n});\n\nconsole.log(`=== FINAL RESULTS ===`);\nconsole.log(`Returning ${results.length} processed chunks`);\nif (results.length > 0) {\n  console.log('Sample result topics:', results[0].json.topics);\n  console.log('Sample result keys:', Object.keys(results[0].json));\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -976,
+        624
+      ],
+      "id": "dd57d17a-4411-4e9e-963e-396e076dc805",
+      "name": "Unbatch DOCX Results",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Simple Excel Passthrough - Just format for AI with 12k token limit\nconst allChunks = $input.all();\nconst MAX_TOKENS = 120000;\nconst MAX_CHARS = MAX_TOKENS * 4; // ~48k characters\n\nconsole.log(`Processing ${allChunks.length} Excel chunks`);\n\n// Just stringify the Excel data for AI consumption\nlet rawExcelData = \"\";\n\nallChunks.forEach((item, index) => {\n  if (item.json) {\n    // Convert the Excel data to JSON string for AI to process\n    rawExcelData += `Excel Data Item ${index + 1}:\\n`;\n    rawExcelData += JSON.stringify(item.json, null, 2);\n    rawExcelData += \"\\n\\n\";\n  }\n});\n\nconsole.log(`Generated ${rawExcelData.length} characters of raw Excel data`);\n\n// Apply 12k token limit\nlet finalText = rawExcelData;\nlet wasTruncated = false;\n\nif (rawExcelData.length > MAX_CHARS) {\n  // Simple truncation at 12k tokens\n  finalText = rawExcelData.substring(0, MAX_CHARS);\n  \n  // Try to end at a complete JSON object or array\n  const lastBrace = finalText.lastIndexOf('}');\n  const lastBracket = finalText.lastIndexOf(']');\n  const lastComma = finalText.lastIndexOf(',');\n  \n  const cutoff = Math.max(lastBrace, lastBracket, lastComma);\n  if (cutoff > MAX_CHARS * 0.8) {\n    finalText = finalText.substring(0, cutoff + 1);\n  }\n  \n  finalText += \"\\n\\n[... Excel data truncated to 12k tokens for AI processing ...]\";\n  wasTruncated = true;\n  \n  console.log(`Truncated Excel data from ${rawExcelData.length} to ${finalText.length} characters`);\n}\n\nconst finalTokens = Math.ceil(finalText.length / 4);\n\n// Create single batch for AI processing\nconst result = [{\n  json: {\n    chunks: [{\n      id: 0,\n      text: finalText, // Raw Excel JSON for AI to interpret\n      filename: allChunks[0]?.json?.filename || \"excel_file\",\n      documentType: \"spreadsheet\",\n      originalLength: rawExcelData.length,\n      wasTruncated: wasTruncated\n    }],\n    chunkCount: 1,\n    batchIndex: 0,\n    documentInfo: {\n      filename: allChunks[0]?.json?.filename || \"excel_file\",\n      documentType: \"spreadsheet\", \n      totalChunks: 1,\n      wasTruncated: wasTruncated\n    },\n    originalData: [{\n      filename: allChunks[0]?.json?.filename || \"excel_file\",\n      documentType: \"spreadsheet\",\n      estimatedTokens: finalTokens,\n      wasTruncated: wasTruncated,\n      originalLength: rawExcelData.length,\n      processedLength: finalText.length\n    }]\n  }\n}];\n\nconsole.log(`Created Excel batch with ${finalTokens} tokens`);\nconsole.log(\"Sample text preview:\", finalText.substring(0, 200));\n\nreturn result;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1600,
+        0
+      ],
+      "id": "d2b7fe7b-1303-47b8-a62a-283556c270f8",
+      "name": "Prepare Excel Batches"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst originalData = response.originalData || [];\n\nconsole.log('=== DEBUGGING UNBATCH PROCESS ===');\nconsole.log('Response structure:', typeof response);\nconsole.log('Response keys:', Object.keys(response));\n\n// Extract content from OpenAI response - handle different structures\nlet content = '';\n\n// Check if response is an array (your structure)\nif (Array.isArray(response)) {\n  console.log('Response is array, length:', response.length);\n  if (response.length > 0 && response[0].message && response[0].message.content) {\n    content = response[0].message.content;\n    console.log('Found content in response[0].message.content');\n  }\n} \n// Check if response has message.content directly\nelse if (response.message && response.message.content) {\n  content = response.message.content;\n  console.log('Found content in response.message.content');\n} \n// Check other possible locations\nelse if (response.content) {\n  content = response.content;\n  console.log('Found content in response.content');\n} \nelse {\n  console.error('No content found in OpenAI response');\n  console.log('Full response:', JSON.stringify(response, null, 2));\n}\n\nconsole.log('Content type:', typeof content);\nconsole.log('Content preview:', String(content).substring(0, 200));\n\n// Parse summaries from content\nlet summaries = [];\ntry {\n  if (!content) {\n    throw new Error('No content to parse');\n  }\n  \n  let cleanContent = String(content).trim();\n  \n  // Remove markdown code blocks if present\n  cleanContent = cleanContent.replace(/```json\\s*/g, '').replace(/```\\s*/g, '');\n  \n  // Parse JSON\n  if (cleanContent.startsWith('[')) {\n    summaries = JSON.parse(cleanContent);\n    console.log(`Successfully parsed ${summaries.length} summaries from array`);\n  } else if (cleanContent.startsWith('{')) {\n    const parsed = JSON.parse(cleanContent);\n    summaries = Array.isArray(parsed) ? parsed : [parsed];\n    console.log(`Successfully parsed single object, converted to array`);\n  } else {\n    // Try to extract JSON array from mixed content\n    const jsonMatch = cleanContent.match(/\\[[^\\]]*\\]/s);\n    if (jsonMatch) {\n      summaries = JSON.parse(jsonMatch[0]);\n      console.log(`Extracted JSON from mixed content`);\n    } else {\n      throw new Error('No valid JSON found in content');\n    }\n  }\n  \n  // Validate summaries structure\n  summaries.forEach((summary, index) => {\n    console.log(`Summary ${index}:`, {\n      hasId: 'id' in summary,\n      hasSummary: 'summary' in summary,\n      hasTopics: 'topics' in summary,\n      topicsLength: summary.topics ? summary.topics.length : 0,\n      hasDocumentType: 'documentType' in summary\n    });\n  });\n  \n} catch (error) {\n  console.error('Error parsing OpenAI content:', error.message);\n  console.log('Raw content that failed to parse:', content);\n  \n  // Create fallback summaries\n  const numSummaries = originalData.length || 1;\n  summaries = Array.from({length: numSummaries}, (_, index) => ({\n    id: index,\n    summary: `Summary ${index + 1} - parsing error: ${error.message}`,\n    topics: [],\n    documentType: \"unknown\",\n    documentNumber: null,\n    creationDate: null\n  }));\n}\n\n// Map summaries back to original data\nconst results = [];\n\nsummaries.forEach((summary, index) => {\n  const originalItem = originalData[index] || {};\n  \n  // Extract all fields from AI response\n  const summaryText = summary.summary || '';\n  const topics = summary.topics || [];\n  const documentType = summary.documentType || 'general';\n  const documentNumber = summary.documentNumber || null;\n  const creationDate = summary.creationDate || null;\n  \n  console.log(`Processing summary ${index}:`, {\n    summaryLength: summaryText.length,\n    topicsCount: topics.length,\n    documentType: documentType,\n    hasDocumentNumber: !!documentNumber,\n    hasCreationDate: !!creationDate\n  });\n  \n  results.push({\n    json: {\n      ...originalItem,\n      summary: summaryText,\n      topics: topics, // Make sure topics are included!\n      documentType: documentType,\n      documentNumber: documentNumber,\n      creationDate: creationDate,\n      aiProcessed: true,\n      hasDocumentNumber: !!documentNumber,\n      hasCreationDate: !!creationDate,\n      summaryId: summary.id || index,\n      processed: true,\n      processingTimestamp: new Date().toISOString(),\n      source: 'ai_extraction'\n    }\n  });\n});\n\nconsole.log(`=== FINAL RESULTS ===`);\nconsole.log(`Returning ${results.length} processed chunks`);\nif (results.length > 0) {\n  console.log('Sample result topics:', results[0].json.topics);\n  console.log('Sample result keys:', Object.keys(results[0].json));\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1024,
+        0
+      ],
+      "id": "e17be832-ce5a-4e18-aa83-9d5d90ac2e39",
+      "name": "Unbatch Excel Results"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced Document Formatter - Fixed fileName issue\nconst items = $input.all();\nconst results = [];\n\nitems.forEach(item => {\n  const docData = item.json;\n  \n  // Get the FULL document text\n  let fullText = docData.text || '';\n  \n  // Skip if no real content\n  if (!fullText || fullText.trim().length < 50) {\n    console.warn(`Skipping document with insufficient content: ${docData.fileName || docData.filename}`);\n    return;\n  }\n  \n  // Fix: Check both fileName and filename\n  const filename = docData.fileName || docData.filename || 'unknown';\n  \n  // Store ONLY the document text in pageContent for cleaner embeddings\n  const vectorStoreItem = {\n    json: {\n      // Clean document text only - better for embeddings\n      pageContent: fullText.trim(),\n      \n      // All enrichment data goes in metadata\n      metadata: {\n        filename: filename,\n        documentType: docData.documentType || 'unknown',\n        fileExtension: docData.fileExtension || 'unknown',\n        file_hash: docData.file_hash,\n        chunkId: docData.chunkId || 0,\n        totalChunks: docData.totalChunks || 1,\n        \n        // Enrichment data in metadata, not in pageContent\n        summary: docData.summary || '',\n        topics: docData.topics || [],\n        \n        created_at: docData.created_at,\n        file_size: docData.file_size,\n        content_length: fullText.length,\n        \n        // For search/filtering - now will show the actual filename\n        searchable_summary: docData.summary ? \n          `${filename} - ${docData.summary}` : '',\n        \n        // Document-specific metadata\n        ...(docData.documentType === 'spreadsheet' && {\n          sheetName: docData.sheetName,\n          rowRange: docData.rowRange\n        }),\n        ...(docData.documentType === 'document' && {\n          sectionTitle: docData.sectionTitle,\n          sectionLevel: docData.sectionLevel\n        })\n      }\n    }\n  };\n  \n  // Include binary data if needed\n  if (item.binary && Object.keys(item.binary).length > 0) {\n    vectorStoreItem.binary = item.binary;\n  }\n  \n  results.push(vectorStoreItem);\n});\n\nconsole.log(`Processed ${results.length} documents for vector store`);\nconsole.log(`First doc size: ${results[0]?.json.pageContent.length} chars`);\nconsole.log(`Filename: ${results[0]?.json.metadata.filename}`);\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -528,
+        624
+      ],
+      "id": "97b61336-edb4-45dc-9f64-0d4023ed27bc",
+      "name": "Format for Vector Store (DOCX)",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================\n// SIMPLE CUSTOMIZABLE TEXT SPLITTER FOR N8N\n// ============================\n\n// 🔧 EASY CUSTOMIZATION - CHANGE THESE VALUES:\nconst CHUNK_SIZE = 30000;        // Maximum characters per chunk\nconst OVERLAP = 200;            // Characters to overlap between chunks (for context)\nconst SPLIT_AT_SENTENCES = true; // Try to split at sentence boundaries when possible\n\n// ============================\n// MAIN FUNCTION\n// ============================\nconst results = [];\n\n// Process each input item\nfor (const item of $input.all()) {\n  const { pageContent, metadata } = item.json;\n  \n  // Skip if no content\n  if (!pageContent) {\n    console.log('Skipping item - no pageContent found');\n    continue;\n  }\n  \n  console.log(`Splitting content from: ${metadata?.filename || 'unknown file'}`);\n  console.log(`Original length: ${pageContent.length} characters`);\n  \n  // Split the content\n  const chunks = splitContent(pageContent);\n  \n  console.log(`Created ${chunks.length} chunks`);\n  \n  // Create output items\n  chunks.forEach((chunk, index) => {\n    results.push({\n      json: {\n        pageContent: chunk,\n        metadata: {\n          ...metadata,                           // Keep all original metadata\n          chunkId: index,                       // Current chunk number (0, 1, 2...)\n          totalChunks: chunks.length,           // Total number of chunks\n          chunkSize: chunk.length,              // Size of this specific chunk\n          originalSize: pageContent.length,     // Original document size\n          isFirstChunk: index === 0,            // Helpful for processing\n          isLastChunk: index === chunks.length - 1\n        }\n      }\n    });\n  });\n}\n\n// ============================\n// SPLITTING LOGIC\n// ============================\nfunction splitContent(text) {\n  const chunks = [];\n  let currentPosition = 0;\n  \n  while (currentPosition < text.length) {\n    // Calculate chunk end position\n    let chunkEnd = Math.min(currentPosition + CHUNK_SIZE, text.length);\n    \n    // If we're at the end, take everything remaining\n    if (chunkEnd >= text.length) {\n      const finalChunk = text.slice(currentPosition).trim();\n      if (finalChunk.length > 0) {\n        chunks.push(finalChunk);\n      }\n      break;\n    }\n    \n    // Try to split at a good boundary if enabled\n    if (SPLIT_AT_SENTENCES && chunkEnd < text.length) {\n      // Look for sentence endings working backwards from the chunk end\n      const searchStart = Math.max(currentPosition, chunkEnd - 500); // Look back up to 500 chars\n      const chunkText = text.slice(searchStart, chunkEnd);\n      \n      // Find the last sentence ending\n      const sentenceEndings = ['. ', '! ', '? ', '.\\n', '!\\n', '?\\n'];\n      let bestBreak = -1;\n      \n      for (const ending of sentenceEndings) {\n        const lastIndex = chunkText.lastIndexOf(ending);\n        if (lastIndex > bestBreak) {\n          bestBreak = lastIndex;\n        }\n      }\n      \n      // If we found a good break point, use it\n      if (bestBreak > 0) {\n        chunkEnd = searchStart + bestBreak + 2; // +2 to include the '. ' or similar\n      }\n    }\n    \n    // Extract the chunk\n    const chunk = text.slice(currentPosition, chunkEnd).trim();\n    if (chunk.length > 0) {\n      chunks.push(chunk);\n    }\n    \n    // Move to next position with overlap\n    currentPosition = chunkEnd - OVERLAP;\n    \n    // Ensure we don't go backwards\n    if (currentPosition <= chunks.length > 1 ? text.indexOf(chunks[chunks.length - 2]) : 0) {\n      currentPosition = chunkEnd;\n    }\n  }\n  \n  return chunks;\n}\n\nreturn results;\n\n// ============================\n// 📝 CUSTOMIZATION GUIDE\n// ============================\n\n/*\nEASY MODIFICATIONS:\n\n1. CHANGE CHUNK SIZE:\n   const CHUNK_SIZE = 5000;  // Larger chunks\n   const CHUNK_SIZE = 1500;  // Smaller chunks\n\n2. ADJUST OVERLAP:\n   const OVERLAP = 0;        // No overlap\n   const OVERLAP = 300;      // More overlap for better context\n\n3. DISABLE SMART SPLITTING:\n   const SPLIT_AT_SENTENCES = false;  // Just cut at exact character count\n\n4. ADD MORE METADATA:\n   In the results.push section, add:\n   metadata: {\n     ...metadata,\n     yourCustomField: 'your value',\n     processingDate: new Date().toISOString(),\n     chunkHash: require('crypto').createHash('md5').update(chunk).digest('hex')\n   }\n\n5. FILTER CHUNKS:\n   Add before chunks.push(chunk):\n   if (chunk.length < 100) continue;  // Skip very small chunks\n\n6. DIFFERENT SPLITTING PATTERNS:\n   Replace sentence endings array with:\n   const sentenceEndings = ['\\n\\n', '\\n', '. '];  // Prefer paragraphs, then lines, then sentences\n*/"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -304,
+        624
+      ],
+      "id": "9262a782-6d66-4556-9038-ef528dc7df5f",
+      "name": "Code",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "documents_collection",
+          "mode": "id"
+        },
+        "embeddingBatchSize": 100,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1.1,
+      "position": [
+        -96,
+        0
+      ],
+      "id": "4cefcddb-ae32-47a1-95d7-a5e910a2ea03",
+      "name": "Qdrant Vector Store1",
+      "retryOnFail": true,
+      "credentials": {
+        "qdrantApi": {
+          "id": "sFfERYppMeBnFNeA",
+          "name": "Local QdrantApi database"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "options": {
+          "timeout": 9999999
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -128,
+        224
+      ],
+      "id": "8338d651-5676-4091-9273-f33c0eadfa6b",
+      "name": "Embeddings OpenAI1"
+    },
+    {
+      "parameters": {
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "metadata",
+                "value": "={{ $json.metadata }}"
+              },
+              {
+                "name": "PageContent",
+                "value": "={{ $json.pageContent }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1,
+      "position": [
+        0,
+        224
+      ],
+      "id": "44d21ac1-85d7-4772-b38a-3137fdcbf30c",
+      "name": "Default Data Loader1"
+    },
+    {
+      "parameters": {
+        "chunkOverlap": 100,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        80,
+        432
+      ],
+      "id": "40b512f1-3458-4089-9383-aa781f77ceff",
+      "name": "Recursive Character Text Splitter1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================\n// SIMPLE CUSTOMIZABLE TEXT SPLITTER FOR N8N\n// ============================\n\n// 🔧 EASY CUSTOMIZATION - CHANGE THESE VALUES:\nconst CHUNK_SIZE = 30000;        // Maximum characters per chunk\nconst OVERLAP = 200;            // Characters to overlap between chunks (for context)\nconst SPLIT_AT_SENTENCES = true; // Try to split at sentence boundaries when possible\n\n// ============================\n// MAIN FUNCTION\n// ============================\nconst results = [];\n\n// Process each input item\nfor (const item of $input.all()) {\n  const { pageContent, metadata } = item.json;\n  \n  // Skip if no content\n  if (!pageContent) {\n    console.log('Skipping item - no pageContent found');\n    continue;\n  }\n  \n  console.log(`Splitting content from: ${metadata?.filename || 'unknown file'}`);\n  console.log(`Original length: ${pageContent.length} characters`);\n  \n  // Split the content\n  const chunks = splitContent(pageContent);\n  \n  console.log(`Created ${chunks.length} chunks`);\n  \n  // Create output items\n  chunks.forEach((chunk, index) => {\n    results.push({\n      json: {\n        pageContent: chunk,\n        metadata: {\n          ...metadata,                           // Keep all original metadata\n          chunkId: index,                       // Current chunk number (0, 1, 2...)\n          totalChunks: chunks.length,           // Total number of chunks\n          chunkSize: chunk.length,              // Size of this specific chunk\n          originalSize: pageContent.length,     // Original document size\n          isFirstChunk: index === 0,            // Helpful for processing\n          isLastChunk: index === chunks.length - 1\n        }\n      }\n    });\n  });\n}\n\n// ============================\n// SPLITTING LOGIC\n// ============================\nfunction splitContent(text) {\n  const chunks = [];\n  let currentPosition = 0;\n  \n  while (currentPosition < text.length) {\n    // Calculate chunk end position\n    let chunkEnd = Math.min(currentPosition + CHUNK_SIZE, text.length);\n    \n    // If we're at the end, take everything remaining\n    if (chunkEnd >= text.length) {\n      const finalChunk = text.slice(currentPosition).trim();\n      if (finalChunk.length > 0) {\n        chunks.push(finalChunk);\n      }\n      break;\n    }\n    \n    // Try to split at a good boundary if enabled\n    if (SPLIT_AT_SENTENCES && chunkEnd < text.length) {\n      // Look for sentence endings working backwards from the chunk end\n      const searchStart = Math.max(currentPosition, chunkEnd - 500); // Look back up to 500 chars\n      const chunkText = text.slice(searchStart, chunkEnd);\n      \n      // Find the last sentence ending\n      const sentenceEndings = ['. ', '! ', '? ', '.\\n', '!\\n', '?\\n'];\n      let bestBreak = -1;\n      \n      for (const ending of sentenceEndings) {\n        const lastIndex = chunkText.lastIndexOf(ending);\n        if (lastIndex > bestBreak) {\n          bestBreak = lastIndex;\n        }\n      }\n      \n      // If we found a good break point, use it\n      if (bestBreak > 0) {\n        chunkEnd = searchStart + bestBreak + 2; // +2 to include the '. ' or similar\n      }\n    }\n    \n    // Extract the chunk\n    const chunk = text.slice(currentPosition, chunkEnd).trim();\n    if (chunk.length > 0) {\n      chunks.push(chunk);\n    }\n    \n    // Move to next position with overlap\n    currentPosition = chunkEnd - OVERLAP;\n    \n    // Ensure we don't go backwards\n    if (currentPosition <= chunks.length > 1 ? text.indexOf(chunks[chunks.length - 2]) : 0) {\n      currentPosition = chunkEnd;\n    }\n  }\n  \n  return chunks;\n}\n\nreturn results;\n\n// ============================\n// 📝 CUSTOMIZATION GUIDE\n// ============================\n\n/*\nEASY MODIFICATIONS:\n\n1. CHANGE CHUNK SIZE:\n   const CHUNK_SIZE = 5000;  // Larger chunks\n   const CHUNK_SIZE = 1500;  // Smaller chunks\n\n2. ADJUST OVERLAP:\n   const OVERLAP = 0;        // No overlap\n   const OVERLAP = 300;      // More overlap for better context\n\n3. DISABLE SMART SPLITTING:\n   const SPLIT_AT_SENTENCES = false;  // Just cut at exact character count\n\n4. ADD MORE METADATA:\n   In the results.push section, add:\n   metadata: {\n     ...metadata,\n     yourCustomField: 'your value',\n     processingDate: new Date().toISOString(),\n     chunkHash: require('crypto').createHash('md5').update(chunk).digest('hex')\n   }\n\n5. FILTER CHUNKS:\n   Add before chunks.push(chunk):\n   if (chunk.length < 100) continue;  // Skip very small chunks\n\n6. DIFFERENT SPLITTING PATTERNS:\n   Replace sentence endings array with:\n   const sentenceEndings = ['\\n\\n', '\\n', '. '];  // Prefer paragraphs, then lines, then sentences\n*/"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -352,
+        0
+      ],
+      "id": "e8dd80bb-1e5c-44d1-9cc2-f25661ec7478",
+      "name": "Code1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced Document Formatter - Fixed fileName issue\nconst items = $input.all();\nconst results = [];\n\nitems.forEach(item => {\n  const docData = item.json;\n  \n  // Get the FULL document text\n  let fullText = docData.text || '';\n  \n  // Skip if no real content\n  if (!fullText || fullText.trim().length < 50) {\n    console.warn(`Skipping document with insufficient content: ${docData.fileName || docData.filename}`);\n    return;\n  }\n  \n  // Fix: Check both fileName and filename\n  const filename = docData.fileName || docData.filename || 'unknown';\n  \n  // Store ONLY the document text in pageContent for cleaner embeddings\n  const vectorStoreItem = {\n    json: {\n      // Clean document text only - better for embeddings\n      pageContent: fullText.trim(),\n      \n      // All enrichment data goes in metadata\n      metadata: {\n        filename: filename,\n        documentType: docData.documentType || 'unknown',\n        fileExtension: docData.fileExtension || 'unknown',\n        file_hash: docData.file_hash,\n        chunkId: docData.chunkId || 0,\n        totalChunks: docData.totalChunks || 1,\n        \n        // Enrichment data in metadata, not in pageContent\n        summary: docData.summary || '',\n        topics: docData.topics || [],\n        \n        created_at: docData.created_at,\n        file_size: docData.file_size,\n        content_length: fullText.length,\n        \n        // For search/filtering - now will show the actual filename\n        searchable_summary: docData.summary ? \n          `${filename} - ${docData.summary}` : '',\n        \n        // Document-specific metadata\n        ...(docData.documentType === 'spreadsheet' && {\n          sheetName: docData.sheetName,\n          rowRange: docData.rowRange\n        }),\n        ...(docData.documentType === 'document' && {\n          sectionTitle: docData.sectionTitle,\n          sectionLevel: docData.sectionLevel\n        })\n      }\n    }\n  };\n  \n  // Include binary data if needed\n  if (item.binary && Object.keys(item.binary).length > 0) {\n    vectorStoreItem.binary = item.binary;\n  }\n  \n  results.push(vectorStoreItem);\n});\n\nconsole.log(`Processed ${results.length} documents for vector store`);\nconsole.log(`First doc size: ${results[0]?.json.pageContent.length} chars`);\nconsole.log(`Filename: ${results[0]?.json.metadata.filename}`);\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -576,
+        0
+      ],
+      "id": "4dfa61d8-9de6-48b8-9de2-cfa42cc56464",
+      "name": "Format for Vector Store (Excel)"
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "documents_collection",
+          "mode": "id"
+        },
+        "embeddingBatchSize": 100,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1.1,
+      "position": [
+        -80,
+        1248
+      ],
+      "id": "404eec4b-fc1b-4852-81fe-4abcac111b37",
+      "name": "Qdrant Vector Store2",
+      "retryOnFail": true,
+      "credentials": {
+        "qdrantApi": {
+          "id": "sFfERYppMeBnFNeA",
+          "name": "Local QdrantApi database"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "options": {
+          "timeout": 9999999
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -112,
+        1488
+      ],
+      "id": "f868d153-91b9-4ad6-a0ad-127a71d315aa",
+      "name": "Embeddings OpenAI2"
+    },
+    {
+      "parameters": {
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "metadata",
+                "value": "={{ $json.metadata }}"
+              },
+              {
+                "name": "PageContent",
+                "value": "={{ $json.pageContent }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1,
+      "position": [
+        16,
+        1488
+      ],
+      "id": "b6171ebb-8d71-4331-9122-14668f9444ef",
+      "name": "Default Data Loader2"
+    },
+    {
+      "parameters": {
+        "chunkOverlap": 100,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        16,
+        1680
+      ],
+      "id": "6293dd32-af7b-4fa6-ae52-710ea1c1c0f6",
+      "name": "Recursive Character Text Splitter2"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================\n// SIMPLE CUSTOMIZABLE TEXT SPLITTER FOR N8N\n// ============================\n\n// 🔧 EASY CUSTOMIZATION - CHANGE THESE VALUES:\nconst CHUNK_SIZE = 20000;        // Maximum characters per chunk\nconst OVERLAP = 200;            // Characters to overlap between chunks (for context)\nconst SPLIT_AT_SENTENCES = true; // Try to split at sentence boundaries when possible\n\n// ============================\n// MAIN FUNCTION\n// ============================\nconst results = [];\n\n// Process each input item\nfor (const item of $input.all()) {\n  const { pageContent, metadata } = item.json;\n  \n  // Skip if no content\n  if (!pageContent) {\n    console.log('Skipping item - no pageContent found');\n    continue;\n  }\n  \n  console.log(`Splitting content from: ${metadata?.filename || 'unknown file'}`);\n  console.log(`Original length: ${pageContent.length} characters`);\n  \n  // Split the content\n  const chunks = splitContent(pageContent);\n  \n  console.log(`Created ${chunks.length} chunks`);\n  \n  // Create output items\n  chunks.forEach((chunk, index) => {\n    results.push({\n      json: {\n        pageContent: chunk,\n        metadata: {\n          ...metadata,                           // Keep all original metadata\n          chunkId: index,                       // Current chunk number (0, 1, 2...)\n          totalChunks: chunks.length,           // Total number of chunks\n          chunkSize: chunk.length,              // Size of this specific chunk\n          originalSize: pageContent.length,     // Original document size\n          isFirstChunk: index === 0,            // Helpful for processing\n          isLastChunk: index === chunks.length - 1\n        }\n      }\n    });\n  });\n}\n\n// ============================\n// SPLITTING LOGIC\n// ============================\nfunction splitContent(text) {\n  const chunks = [];\n  let currentPosition = 0;\n  \n  while (currentPosition < text.length) {\n    // Calculate chunk end position\n    let chunkEnd = Math.min(currentPosition + CHUNK_SIZE, text.length);\n    \n    // If we're at the end, take everything remaining\n    if (chunkEnd >= text.length) {\n      const finalChunk = text.slice(currentPosition).trim();\n      if (finalChunk.length > 0) {\n        chunks.push(finalChunk);\n      }\n      break;\n    }\n    \n    // Try to split at a good boundary if enabled\n    if (SPLIT_AT_SENTENCES && chunkEnd < text.length) {\n      // Look for sentence endings working backwards from the chunk end\n      const searchStart = Math.max(currentPosition, chunkEnd - 500); // Look back up to 500 chars\n      const chunkText = text.slice(searchStart, chunkEnd);\n      \n      // Find the last sentence ending\n      const sentenceEndings = ['. ', '! ', '? ', '.\\n', '!\\n', '?\\n'];\n      let bestBreak = -1;\n      \n      for (const ending of sentenceEndings) {\n        const lastIndex = chunkText.lastIndexOf(ending);\n        if (lastIndex > bestBreak) {\n          bestBreak = lastIndex;\n        }\n      }\n      \n      // If we found a good break point, use it\n      if (bestBreak > 0) {\n        chunkEnd = searchStart + bestBreak + 2; // +2 to include the '. ' or similar\n      }\n    }\n    \n    // Extract the chunk\n    const chunk = text.slice(currentPosition, chunkEnd).trim();\n    if (chunk.length > 0) {\n      chunks.push(chunk);\n    }\n    \n    // Move to next position with overlap\n    currentPosition = chunkEnd - OVERLAP;\n    \n    // Ensure we don't go backwards\n    if (currentPosition <= chunks.length > 1 ? text.indexOf(chunks[chunks.length - 2]) : 0) {\n      currentPosition = chunkEnd;\n    }\n  }\n  \n  return chunks;\n}\n\nreturn results;\n\n// ============================\n// 📝 CUSTOMIZATION GUIDE\n// ============================\n\n/*\nEASY MODIFICATIONS:\n\n1. CHANGE CHUNK SIZE:\n   const CHUNK_SIZE = 5000;  // Larger chunks\n   const CHUNK_SIZE = 1500;  // Smaller chunks\n\n2. ADJUST OVERLAP:\n   const OVERLAP = 0;        // No overlap\n   const OVERLAP = 300;      // More overlap for better context\n\n3. DISABLE SMART SPLITTING:\n   const SPLIT_AT_SENTENCES = false;  // Just cut at exact character count\n\n4. ADD MORE METADATA:\n   In the results.push section, add:\n   metadata: {\n     ...metadata,\n     yourCustomField: 'your value',\n     processingDate: new Date().toISOString(),\n     chunkHash: require('crypto').createHash('md5').update(chunk).digest('hex')\n   }\n\n5. FILTER CHUNKS:\n   Add before chunks.push(chunk):\n   if (chunk.length < 100) continue;  // Skip very small chunks\n\n6. DIFFERENT SPLITTING PATTERNS:\n   Replace sentence endings array with:\n   const sentenceEndings = ['\\n\\n', '\\n', '. '];  // Prefer paragraphs, then lines, then sentences\n*/"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        1248
+      ],
+      "id": "8fdb92c1-5e38-4562-b72c-21f7e9bb5959",
+      "name": "Code2",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "content": "Workflow that inserts information into vector database\nThis workflow had a duplicate file checking but it was removed",
+        "height": 80,
+        "width": 464
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -4304,
+        512
+      ],
+      "id": "76a5c10a-2062-41f8-9fb2-6bcea24c4dbb",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "EXCEL",
+        "height": 272,
+        "width": 2736
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2448,
+        -48
+      ],
+      "id": "0c18bb77-1128-491a-9430-65170503bcc5",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "DOCX",
+        "height": 320,
+        "width": 2704,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2416,
+        544
+      ],
+      "id": "f9e056a8-4534-45aa-96b0-779628b3c17b",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "content": "PDF",
+        "height": 304,
+        "width": 2688,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2400,
+        1152
+      ],
+      "id": "c3a0a9f0-1c48-4191-98e1-392564c671b5",
+      "name": "Sticky Note5"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Test workflow’": {
+      "main": [
+        [
+          {
+            "node": "Read Documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Documents": {
+      "main": [
+        [
+          {
+            "node": "Generate Hash",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Hash": {
+      "main": [
+        [
+          {
+            "node": "Extract Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Metadata": {
+      "main": [
+        [
+          {
+            "node": "Deduplicate Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Switch1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant Vector Store": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FilterInXLSX": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items2": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Extract Text2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter2": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WordToText": {
+      "main": [
+        [
+          {
+            "node": "DOCX Chunker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Text2": {
+      "main": [
+        [
+          {
+            "node": "PDF Text Processor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch1": {
+      "main": [
+        [
+          {
+            "node": "FilterInXLSX",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Filter1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Filter2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "Prepare Excel Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "ExtractFromXLSX",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ExtractFromXLSX": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI1": {
+      "main": [
+        [
+          {
+            "node": "Unbatch DOCX Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI2": {
+      "main": [
+        [
+          {
+            "node": "Unbatch Excel Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Qdrant Vector Store",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recursive Character Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Unbatch PDF Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items1": {
+      "main": [
+        [],
+        [
+          {
+            "node": "WordToText",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Format for Vector Store (DOCX)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields3": {
+      "main": [
+        [
+          {
+            "node": "Format for Vector Store (Excel)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields4": {
+      "main": [
+        [
+          {
+            "node": "Format for Vector Store (PDF)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deduplicate Files": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PDF Text Processor": {
+      "main": [
+        [
+          {
+            "node": "Prepare PDF Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format for Vector Store (PDF)": {
+      "main": [
+        [
+          {
+            "node": "Code2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare PDF Batches": {
+      "main": [
+        [
+          {
+            "node": "OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unbatch PDF Results": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DOCX Chunker": {
+      "main": [
+        [
+          {
+            "node": "Prepare DOCX Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare DOCX Batches": {
+      "main": [
+        [
+          {
+            "node": "OpenAI1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unbatch DOCX Results": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Excel Batches": {
+      "main": [
+        [
+          {
+            "node": "OpenAI2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unbatch Excel Results": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format for Vector Store (DOCX)": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Qdrant Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI1": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant Vector Store1",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader1": {
+      "ai_document": [
+        [
+          {
+            "node": "Qdrant Vector Store1",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recursive Character Text Splitter1": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader1",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "Qdrant Vector Store1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format for Vector Store (Excel)": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant Vector Store1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI2": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant Vector Store2",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader2": {
+      "ai_document": [
+        [
+          {
+            "node": "Qdrant Vector Store2",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recursive Character Text Splitter2": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader2",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code2": {
+      "main": [
+        [
+          {
+            "node": "Qdrant Vector Store2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant Vector Store2": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "2f6b4c3a-985f-4a0a-bf34-736dd3e93ee7",
+  "meta": {
+    "instanceId": "558d88703fb65b2d0e44613bc35916258b0f0bf983c5d4730c00c424b77ca36a"
+  },
+  "id": "zXDq73P1StBKMKxs",
+  "tags": [
+    {
+      "createdAt": "2025-09-24T12:20:31.275Z",
+      "updatedAt": "2025-09-24T12:20:31.275Z",
+      "id": "hMHHM8nEeSzWvVY9",
+      "name": "document-processing"
+    },
+    {
+      "createdAt": "2025-09-24T12:20:31.279Z",
+      "updatedAt": "2025-09-24T12:20:31.279Z",
+      "id": "1nvp4K0a8rBFPgD8",
+      "name": "rag"
+    },
+    {
+      "createdAt": "2025-09-24T12:20:31.288Z",
+      "updatedAt": "2025-09-24T12:20:31.288Z",
+      "id": "vra6tJSxKIfA4sx4",
+      "name": "vector-store"
+    }
+  ]
+}

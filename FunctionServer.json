@@ -1,0 +1,252 @@
+{
+  "name": "FunctionServer",
+  "nodes": [
+    {
+      "parameters": {
+        "description": "##Use this to fetch detailed file contents\n{\n  \"query\": \"quarterly reports\",\n  \"filter\": {\n    \"must\": [\n      {\n        \"key\": \"metadata.metadata.documentType\",\n        \"match\": {\n          \"value\": \"report\"\n        }\n      },\n      {\n        \"key\": \"metadata.metadata.year\",\n        \"match\": {\n          \"value\": 2024\n        }\n      },\n      {\n        \"key\": \"metadata.metadata.topics\",\n        \"match\": {\n          \"any\": [\"finance\", \"quarterly\", \"Q1\", \"Q2\", \"Q3\", \"Q4\"]\n        }\n      }\n    ]\n  }\n}\n\nExamples:\nif human asks: \"can you find me script examples regarding file processing\"\nuse get_detailed_document_search\n\nif human asks: \"can you find networking scripts\"\nuse get_detailed_document_search",
+        "workflowId": {
+          "__rl": true,
+          "value": "Ogmeu27qdahclVDE",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('query', ``, 'string') }}",
+            "searchType": "long",
+            "needsContent": "true",
+            "limit": 5,
+            "collection": "documents_collection",
+            "filter": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('filter', ``, 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "query",
+              "displayName": "query",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "searchType",
+              "displayName": "searchType",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "needsContent",
+              "displayName": "needsContent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "collection",
+              "displayName": "collection",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "limit",
+              "displayName": "limit",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": false
+            },
+            {
+              "id": "filter",
+              "displayName": "filter",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        -640,
+        320
+      ],
+      "id": "27f64904-bdd4-433c-a152-9af25c423547",
+      "name": "DetailedContentAnalysis"
+    },
+    {
+      "parameters": {
+        "description": "##Use this to find file locations\n{\n  \"query\": \"quarterly reports\",\n  \"filter\": {\n    \"must\": [\n      {\n        \"key\": \"metadata.metadata.documentType\",\n        \"match\": {\n          \"value\": \"report\"\n        }\n      },\n      {\n        \"key\": \"metadata.metadata.year\",\n        \"match\": {\n          \"value\": 2024\n        }\n      },\n      {\n        \"key\": \"metadata.metadata.topics\",\n        \"match\": {\n          \"any\": [\"finance\", \"quarterly\", \"Q1\", \"Q2\", \"Q3\", \"Q4\"]\n        }\n      }\n    ]\n  }\n}\n\nExamples:\nif human asks: \"can you find me invoice files 2024\"\nuse find_document_search\n\nif human asks: \"analyze these invoice files\"\nfind_document_search\n\n\n\n\n",
+        "workflowId": {
+          "__rl": true,
+          "value": "Ogmeu27qdahclVDE",
+          "mode": "list",
+          "cachedResultName": "Vectordatabase"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('query', ``, 'string') }}",
+            "searchType": "fast",
+            "needsContent": "false",
+            "limit": 100,
+            "collection": "documents_collection",
+            "filter": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('filter', ``, 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "query",
+              "displayName": "query",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "searchType",
+              "displayName": "searchType",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "needsContent",
+              "displayName": "needsContent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "collection",
+              "displayName": "collection",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "limit",
+              "displayName": "limit",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": false
+            },
+            {
+              "id": "filter",
+              "displayName": "filter",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        -800,
+        320
+      ],
+      "id": "ad767057-6421-4fd8-b4e6-3e441b76e6ff",
+      "name": "FastDocumentSearch"
+    },
+    {
+      "parameters": {
+        "path": "508f2db6-d949-4a5e-92b0-2b2e94bc0fb0"
+      },
+      "type": "@n8n/n8n-nodes-langchain.mcpTrigger",
+      "typeVersion": 1,
+      "position": [
+        -784,
+        96
+      ],
+      "id": "cd9f1bbb-0ea6-4147-af4d-ceb81bd47fb2",
+      "name": "Function server",
+      "webhookId": "508f2db6-d949-4a5e-92b0-2b2e94bc0fb0"
+    },
+    {
+      "parameters": {
+        "content": "MCP server make sure that this workflow is always active",
+        "height": 80
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1056,
+        16
+      ],
+      "id": "f23505e4-7c5e-46e2-abac-e775b5f1ef22",
+      "name": "Sticky Note"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "DetailedContentAnalysis": {
+      "ai_tool": [
+        [
+          {
+            "node": "Function server",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FastDocumentSearch": {
+      "ai_tool": [
+        [
+          {
+            "node": "Function server",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "34df3d9d-4b36-46c1-9717-b5307fae5123",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "558d88703fb65b2d0e44613bc35916258b0f0bf983c5d4730c00c424b77ca36a"
+  },
+  "id": "VOrJHxfVCOQCrIP1",
+  "tags": []
+}
